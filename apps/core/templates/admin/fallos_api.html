@@ -6,7 +6,12 @@
 <div class="min-h-screen bg-slate-50 flex flex-col">
     <header class="bg-white border-b border-slate-200 px-6 py-4 flex items-center justify-between shadow-sm">
         <h1 class="font-bold text-slate-800 text-lg">ACCN - Registros de Fallos de API y Conmutación</h1>
-        <a href="{% url 'admin_dashboard' %}" class="text-sm font-medium text-blue-600 hover:underline">Volver al Dashboard</a>
+        <div class="flex items-center space-x-6">
+            <a href="{% url 'admin_dashboard' %}" class="text-sm font-medium text-slate-600 hover:text-blue-600">Usuarios</a>
+            <a href="{% url 'admin_fallos_api' %}" class="text-sm font-semibold text-blue-600 border-b-2 border-blue-600 pb-1">Auditoría APIs</a>
+            <a href="{% url 'admin_perfil' %}" class="text-sm font-medium text-slate-600 hover:text-blue-600">Mi Perfil</a>
+            <a href="{% url 'logout' %}" class="text-sm font-medium text-red-600 hover:text-red-700">Cerrar Sesión</a>
+        </div>
     </header>
 
     <main class="flex-1 max-w-7xl w-full mx-auto p-6 space-y-6">

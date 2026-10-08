@@ -11,13 +11,28 @@
     
     <!-- Contenedor de Mensajes/Notificaciones -->
     {% if messages %}
-    <div class="max-w-md mx-auto mt-4 w-full px-4">
+    <div id="messages-container" class="max-w-md mx-auto mt-4 w-full px-4 transition-opacity duration-500">
         {% for message in messages %}
         <div class="p-4 mb-2 text-sm rounded-lg border shadow-sm {% if message.tags == 'error' %}bg-red-50 text-red-700 border-red-200{% else %}bg-blue-50 text-blue-700 border-blue-200{% endif %}">
             {{ message }}
         </div>
         {% endfor %}
     </div>
+
+    <script>
+        setTimeout(function() {
+            const container = document.getElementById('messages-container');
+            if (container) {
+                // Inicia la transición de desvanecimiento (fade out)
+                container.style.opacity = '0';
+                
+                // Elimina el elemento por completo del DOM tras terminar la animación
+                setTimeout(function() {
+                    container.remove();
+                }, 500); // 500ms coincide con duration-500 de Tailwind
+            }
+        }, 4000); // 4000ms = 4 segundos antes de desaparecer
+    </script>
     {% endif %}
 
     {% block content %}{% endblock %}
