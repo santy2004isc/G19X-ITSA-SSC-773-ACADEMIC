@@ -153,7 +153,7 @@ Abre tu navegador e ingresa a: [http://localhost:8000](http://localhost:8000)
 ## Políticas de Seguridad y Privacidad
 
 * **Cero Almacenamiento Persistente de PDF:** Los archivos subidos se leen únicamente en memoria volátil durante la fase de procesamiento y se descartan tras generar los vectores.
-* **Protección de Datos:** Las contraseñas están cifradas con el sistema de hashing nativo de Django (PBKDF2).
+* **Protección de Datos:** Las contraseñas están cifradas con el sistema de hashing nativo de Django.
 * **Control de Contexto:** Las consultas fuera del marco normativo federal mexicano son rechazadas automáticamente mediante guardrails en los prompts.
 
 ---
