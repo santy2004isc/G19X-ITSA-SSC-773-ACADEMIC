@@ -2,7 +2,7 @@ import uuid
 from django.db import models
 from django.contrib.auth.models import AbstractBaseUser, BaseUserManager, PermissionsMixin
 from pgvector.django import VectorField
-
+from django.utils import timezone
 
 # ==========================================
 # 1. MANAGER Y MODELO DE USUARIO
@@ -67,6 +67,7 @@ class Usuario(AbstractBaseUser, PermissionsMixin):
         default=0, 
         verbose_name='Mensajes usados hoy'
     )
+    fecha_ultimo_reset = models.DateField(default=timezone.now, verbose_name='Fecha de último reset de cuota')
     activo = models.BooleanField(default=True, verbose_name='Cuenta activa')
     is_staff = models.BooleanField(default=False, verbose_name='Es Staff')
     fecha_registro = models.DateTimeField(
@@ -90,6 +91,16 @@ class Usuario(AbstractBaseUser, PermissionsMixin):
 
     def __str__(self):
         return f"{self.nombre} {self.apellido} ({self.correo_electronico})"
+
+    def verificar_y_reiniciar_cuota_diaria(self):
+        """
+        Verifica si cambió el día. De ser así, reinicia el contador de mensajes.
+        """
+        hoy = timezone.now().date()
+        if self.fecha_ultimo_reset != hoy:
+            self.mensajes_usados_hoy = 0
+            self.fecha_ultimo_reset = hoy
+            self.save(update_fields=['mensajes_usados_hoy', 'fecha_ultimo_reset'])
 
 
 # ==========================================

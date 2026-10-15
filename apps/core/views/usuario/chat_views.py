@@ -32,6 +32,7 @@ def chat_interfaz_view(request, conversacion_id=None):
     if conversacion_actual:
         mensajes = conversacion_actual.mensajes.all().order_by('fecha_envio')
 
+    usuario.verificar_y_reiniciar_cuota_diaria()
     mensajes_restantes = max(0, usuario.cuota_diaria_mensajes - usuario.mensajes_usados_hoy)
 
     context = {
@@ -51,7 +52,7 @@ def crear_nueva_conversacion_view(request):
         usuario=request.user,
         titulo="Consulta Normativa"
     )
-    return redirect('usuario_chat_conversacion', conversacion_id=nueva_conv.id)
+    return redirect('chat_conversacion', conversacion_id=nueva_conv.id)
 
 
 @login_required
@@ -61,7 +62,7 @@ def eliminar_conversacion_view(request, conversacion_id):
     conv = get_object_or_404(Conversacion, id=conversacion_id, usuario=request.user)
     conv.delete()
     messages.success(request, "La conversación fue eliminada.")
-    return redirect('usuario_chat_interfaz')
+    return redirect('chat_interfaz')
 
 
 @login_required
@@ -72,6 +73,8 @@ def enviar_mensaje_api_view(request):
     Endpoint AJAX con control estricto de cuota diaria.
     """
     usuario = request.user
+
+    usuario.verificar_y_reiniciar_cuota_diaria()
 
     # 1. Validación estricta de Cuota Diaria
     if usuario.mensajes_usados_hoy >= usuario.cuota_diaria_mensajes:
