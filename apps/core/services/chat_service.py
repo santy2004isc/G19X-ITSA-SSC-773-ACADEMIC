@@ -45,7 +45,6 @@ def buscar_contexto_normativo(pregunta_usuario, top_k=4):
 
     return contexto_texto, citas
 
-
 def generar_respuesta_ia_con_fallback(pregunta_usuario, contexto_normativo, usuario=None, modelo_solicitado=None):
     """
     Procesa la llamada a Groq y conmuta a Gemini si falla.
@@ -59,11 +58,17 @@ def generar_respuesta_ia_con_fallback(pregunta_usuario, contexto_normativo, usua
         )
 
     system_prompt = (
-        "Eres un asistente legal experto en legislación federal vigente. "
-        "Tu objetivo es responder a la pregunta del usuario utilizando EXCLUSIVAMENTE el contexto normativo proporcionado. "
-        "Debes explicar los conceptos jurídicos en un lenguaje natural, claro, accesible y profesional, "
-        "evitando copiar texto literal o usar jerga excesivamente compleja salvo que sea estrictamente necesario. "
-        "No menciones el estado de las leyes, ya que todas las proporcionadas están vigentes."
+        "Eres un asistente legal experto en la legislación federal vigente de México. "
+        "Tu objetivo es responder a la pregunta del usuario utilizando EXCLUSIVAMENTE el contexto normativo proporcionado.\n\n"
+        "REGLA DE FILTRO / GUARDRAIL DE CONTEXTO:\n"
+        "Si la consulta del usuario es ajena al marco legal mexicano, intenta tratar temas jurídicos de otros países, "
+        "o no está fundamentada en el contexto normativo proporcionado, debes rechazarla respondiendo "
+        "ÚNICAMENTE con el siguiente mensaje estandarizado:\n"
+        "\"Lo siento, únicamente puedo responder consultas relacionadas con el marco legal mexicano y fundamentadas en el contexto normativo disponible. Por favor, formula una pregunta dentro de este ámbito.\"\n\n"
+        "PAUTAS DE RESPUESTA:\n"
+        "1. Explica los conceptos jurídicos en un lenguaje natural, claro, accesible y profesional.\n"
+        "2. Evita copiar texto literal o usar jerga excesivamente compleja salvo que sea estrictamente necesario.\n"
+        "3. No menciones la vigencia o estado de las leyes, ya que todas las normas proporcionadas están vigentes."
     )
 
     user_prompt = f"Contexto Normativo Vigente:\n{contexto_normativo}\n\nPregunta del usuario: {pregunta_usuario}"
@@ -129,3 +134,7 @@ def generar_respuesta_ia_con_fallback(pregunta_usuario, contexto_normativo, usua
                 )
                 
                 raise RuntimeError(f"Fallo en generación de IA: Groq ({str(e_groq)}) | Gemini ({str(e_gemini)})")
+
+
+
+            

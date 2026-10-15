@@ -6,7 +6,7 @@
 <div class="h-screen flex bg-slate-100 overflow-hidden">
     
     <!-- Sidebar -->
-    <aside class="w-72 bg-slate-900 text-slate-300 flex flex-col border-r border-slate-800 flex-shrink-0">
+    <aside id="sidebar" class="w-72 bg-slate-900 text-slate-300 flex flex-col border-r border-slate-800 flex-shrink-0 transition-all duration-300 ease-in-out">
         <div class="p-4 border-b border-slate-800 flex items-center justify-between">
             <div class="flex items-center space-x-2">
                 <div class="w-8 h-8 bg-blue-600 text-white font-bold flex items-center justify-center rounded-lg text-xs shadow">ACCN</div>
@@ -61,14 +61,22 @@
         </div>
     </aside>
 
-    <!-- Main Chat -->
-    <main class="flex-1 flex flex-col bg-white">
+    <!-- Main Chat (min-w-0 evita que los elementos hijos rompan el ancho en layouts Flex) -->
+    <main class="flex-1 flex flex-col bg-white min-w-0">
         <header class="border-b border-slate-200 px-6 py-3.5 flex items-center justify-between bg-white shadow-sm">
-            <div>
-                <h2 class="font-bold text-slate-800 text-sm" id="chatTitle">
-                    {% if conversacion_actual %}{{ conversacion_actual.titulo }}{% else %}Consulta Normativa{% endif %}
-                </h2>
-                <p class="text-xs text-slate-400">Sistema RAG de Leyes Federales</p>
+            <div class="flex items-center space-x-3">
+                <!-- Botón para Ocultar/Mostrar la Barra Lateral -->
+                <button id="toggleSidebar" class="p-1.5 text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-lg transition focus:outline-none" title="Ocultar/Mostrar menú">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/>
+                    </svg>
+                </button>
+                <div>
+                    <h2 class="font-bold text-slate-800 text-sm" id="chatTitle">
+                        {% if conversacion_actual %}{{ conversacion_actual.titulo }}{% else %}Consulta Normativa{% endif %}
+                    </h2>
+                    <p class="text-xs text-slate-400">Sistema RAG de Leyes Federales</p>
+                </div>
             </div>
         </header>
 
@@ -78,14 +86,14 @@
                 {% for msg in mensajes %}
                     {% if msg.emisor == 'USUARIO' %}
                     <div class="flex justify-end">
-                        <div class="max-w-xl bg-blue-600 text-white rounded-2xl rounded-tr-none px-4 py-3 text-sm shadow-sm">
-                            <p class="whitespace-pre-wrap">{{ msg.contenido_texto }}</p>
+                        <div class="max-w-xl bg-blue-600 text-white rounded-2xl rounded-tr-none px-4 py-3 text-sm shadow-sm break-words overflow-hidden">
+                            <p class="whitespace-pre-wrap break-words">{{ msg.contenido_texto }}</p>
                             <span class="block text-right text-[10px] text-blue-200 mt-1">{{ msg.fecha_envio|date:"H:i" }}</span>
                         </div>
                     </div>
                     {% else %}
                     <div class="flex justify-start">
-                        <div class="max-w-2xl bg-white border border-slate-200 rounded-2xl rounded-tl-none p-4 text-sm text-slate-800 shadow-sm space-y-3">
+                        <div class="max-w-2xl bg-white border border-slate-200 rounded-2xl rounded-tl-none p-4 text-sm text-slate-800 shadow-sm space-y-3 break-words overflow-hidden">
                             <div class="flex items-center justify-between border-b border-slate-100 pb-1.5 text-xs">
                                 <span class="text-blue-600 font-semibold flex items-center space-x-1">
                                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
@@ -96,14 +104,14 @@
                                 {% endif %}
                             </div>
 
-                            <p class="whitespace-pre-wrap leading-relaxed">{{ msg.contenido_texto }}</p>
+                            <p class="whitespace-pre-wrap leading-relaxed break-words">{{ msg.contenido_texto }}</p>
 
                             {% if msg.citas %}
-                            <div class="bg-slate-50 border border-slate-200 rounded-lg p-3 text-xs space-y-1.5 mt-2">
+                            <div class="bg-slate-50 border border-slate-200 rounded-lg p-3 text-xs space-y-1.5 mt-2 break-words">
                                 <span class="font-bold text-slate-700 block uppercase tracking-wider text-[10px]">Citas Normativas:</span>
-                                <ul class="space-y-1 list-disc list-inside text-slate-600">
+                                <ul class="space-y-1 list-disc list-inside text-slate-600 break-words">
                                     {% for c in msg.citas %}
-                                    <li><strong>{{ c.ley }}</strong> ({{ c.siglas }}) - Última Reforma: {{ c.fecha_reforma }}</li>
+                                    <li class="break-words"><strong>{{ c.ley }}</strong> ({{ c.siglas }}) - Última Reforma: {{ c.fecha_reforma }}</li>
                                     {% endfor %}
                                 </ul>
                             </div>
@@ -128,7 +136,7 @@
         <!-- Indicador -->
         <div id="thinkingIndicator" class="hidden px-6 py-2 bg-slate-50 border-t border-slate-100 flex items-center space-x-2 text-xs text-slate-500">
             <svg class="w-4 h-4 text-blue-600 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
-            <span>Buscando en la base de datos de leyes...</span>
+            <span>Buscando lo solicitado de leyes...</span>
         </div>
 
         <!-- Formulario Chat -->
@@ -145,6 +153,17 @@
 </div>
 
 <script>
+    // Control para Ocultar / Mostrar Sidebar
+    const toggleSidebarBtn = document.getElementById('toggleSidebar');
+    const sidebar = document.getElementById('sidebar');
+
+    if (toggleSidebarBtn && sidebar) {
+        toggleSidebarBtn.addEventListener('click', () => {
+            sidebar.classList.toggle('-ml-72');
+        });
+    }
+
+    // Lógica del Chat
     const chatContainer = document.getElementById('chatContainer');
     const chatForm = document.getElementById('chatForm');
     const chatInput = document.getElementById('chatInput');
@@ -168,8 +187,8 @@
         // 1. Render usuario
         const userMsgHtml = `
             <div class="flex justify-end">
-                <div class="max-w-xl bg-blue-600 text-white rounded-2xl rounded-tr-none px-4 py-3 text-sm shadow-sm">
-                    <p class="whitespace-pre-wrap">${escapeHtml(mensaje)}</p>
+                <div class="max-w-xl bg-blue-600 text-white rounded-2xl rounded-tr-none px-4 py-3 text-sm shadow-sm break-words overflow-hidden">
+                    <p class="whitespace-pre-wrap break-words">${escapeHtml(mensaje)}</p>
                     <span class="block text-right text-[10px] text-blue-200 mt-1">${new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
                 </div>
             </div>
@@ -211,10 +230,10 @@
                 let citasHtml = '';
                 if (data.respuesta.citas && data.respuesta.citas.length > 0) {
                     citasHtml = `
-                        <div class="bg-slate-50 border border-slate-200 rounded-lg p-3 text-xs space-y-1.5 mt-2">
+                        <div class="bg-slate-50 border border-slate-200 rounded-lg p-3 text-xs space-y-1.5 mt-2 break-words">
                             <span class="font-bold text-slate-700 block uppercase tracking-wider text-[10px]">Citas Normativas:</span>
-                            <ul class="space-y-1 list-disc list-inside text-slate-600">
-                                ${data.respuesta.citas.map(c => `<li><strong>${escapeHtml(c.ley)}</strong> (${escapeHtml(c.siglas)}) - Última Reforma: ${escapeHtml(c.fecha_reforma)}</li>`).join('')}
+                            <ul class="space-y-1 list-disc list-inside text-slate-600 break-words">
+                                ${data.respuesta.citas.map(c => `<li class="break-words"><strong>${escapeHtml(c.ley)}</strong> (${escapeHtml(c.siglas)}) - Última Reforma: ${escapeHtml(c.fecha_reforma)}</li>`).join('')}
                             </ul>
                         </div>
                     `;
@@ -223,7 +242,7 @@
                 // Render respuesta
                 const systemMsgHtml = `
                     <div class="flex justify-start">
-                        <div class="max-w-2xl bg-white border border-slate-200 rounded-2xl rounded-tl-none p-4 text-sm text-slate-800 shadow-sm space-y-3">
+                        <div class="max-w-2xl bg-white border border-slate-200 rounded-2xl rounded-tl-none p-4 text-sm text-slate-800 shadow-sm space-y-3 break-words overflow-hidden">
                             <div class="flex items-center justify-between border-b border-slate-100 pb-1.5 text-xs">
                                 <span class="text-blue-600 font-semibold flex items-center space-x-1">
                                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
@@ -231,7 +250,7 @@
                                 </span>
                                 <span class="text-[10px] text-slate-400">IA: ${data.respuesta.proveedor}${data.respuesta.conmutado ? ' (Fallback)' : ''}</span>
                             </div>
-                            <p class="whitespace-pre-wrap leading-relaxed">${escapeHtml(data.respuesta.contenido)}</p>
+                            <p class="whitespace-pre-wrap leading-relaxed break-words">${escapeHtml(data.respuesta.contenido)}</p>
                             ${citasHtml}
                             <span class="block text-right text-[10px] text-slate-400 mt-1">${data.respuesta.fecha}</span>
                         </div>

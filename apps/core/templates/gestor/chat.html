@@ -6,7 +6,7 @@
 <div class="flex h-screen bg-slate-900 text-slate-100 font-sans overflow-hidden">
 
     <!-- SIDEBAR -->
-    <aside class="w-72 bg-slate-950 border-r border-slate-800 flex flex-col justify-between">
+    <aside id="sidebar" class="w-72 bg-slate-950 border-r border-slate-800 flex flex-col justify-between flex-shrink-0 transition-all duration-300 ease-in-out">
         <div class="p-4 flex flex-col space-y-4">
             <div class="flex items-center justify-between">
                 <span class="text-xs font-bold uppercase tracking-wider text-amber-400 bg-amber-950/80 px-2.5 py-1 rounded-full border border-amber-800/50">
@@ -56,13 +56,21 @@
         </div>
     </aside>
 
-    <!-- ÁREA PRINCIPAL -->
-    <main class="flex-1 flex flex-col bg-slate-900 justify-between">
+    <!-- ÁREA PRINCIPAL (Se agrega min-w-0 para evitar desbordamiento por flex layout) -->
+    <main class="flex-1 flex flex-col bg-slate-900 justify-between min-w-0">
         
         <header class="p-4 border-b border-slate-800 flex items-center justify-between bg-slate-900/80 backdrop-blur">
-            <div>
-                <h1 class="text-base font-semibold text-white">Consulta Normativa General</h1>
-                <p class="text-xs text-slate-400">Consultas generadas a partir del contexto de Leyes Federales Vigentes.</p>
+            <div class="flex items-center space-x-3">
+                <!-- Botón para ocultar/mostrar la barra lateral -->
+                <button id="toggleSidebar" class="p-1.5 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition focus:outline-none" title="Ocultar/Mostrar menú">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/>
+                    </svg>
+                </button>
+                <div>
+                    <h1 class="text-base font-semibold text-white">Consulta Normativa General</h1>
+                    <p class="text-xs text-slate-400">Consultas generadas a partir del contexto de Leyes Federales Vigentes.</p>
+                </div>
             </div>
         </header>
 
@@ -71,21 +79,21 @@
             {% for msg in mensajes %}
                 {% if msg.emisor == 'USUARIO' %}
                     <div class="flex justify-end">
-                        <div class="max-w-xl bg-blue-600 text-white p-3.5 rounded-2xl rounded-tr-none text-sm shadow">
-                            <p class="whitespace-pre-wrap">{{ msg.contenido_texto }}</p>
+                        <div class="max-w-xl bg-blue-600 text-white p-3.5 rounded-2xl rounded-tr-none text-sm shadow break-words overflow-hidden">
+                            <p class="whitespace-pre-wrap break-words">{{ msg.contenido_texto }}</p>
                             <span class="block text-[10px] text-blue-200 text-right mt-1">{{ msg.fecha_envio|date:"H:i" }}</span>
                         </div>
                     </div>
                 {% else %}
                     <div class="flex justify-start">
-                        <div class="max-w-2xl bg-slate-800 border border-slate-700 text-slate-200 p-4 rounded-2xl rounded-tl-none text-sm space-y-2 shadow">
-                            <p class="whitespace-pre-wrap">{{ msg.contenido_texto }}</p>
+                        <div class="max-w-2xl bg-slate-800 border border-slate-700 text-slate-200 p-4 rounded-2xl rounded-tl-none text-sm space-y-2 shadow break-words overflow-hidden">
+                            <p class="whitespace-pre-wrap break-words">{{ msg.contenido_texto }}</p>
                             
                             {% if msg.citas %}
                                 <div class="mt-2 pt-2 border-t border-slate-700/60 text-xs text-amber-300/90 space-y-1">
                                     <span class="font-semibold block text-[11px] text-amber-400">Leyes Consultadas:</span>
                                     {% for cita in msg.citas %}
-                                        <div class="bg-slate-900/50 p-1.5 rounded border border-slate-700/40">
+                                        <div class="bg-slate-900/50 p-1.5 rounded border border-slate-700/40 break-words">
                                             📜 {{ cita.ley }} {% if cita.siglas %}({{ cita.siglas }}){% endif %} - Reforma: {{ cita.fecha_reforma }}
                                         </div>
                                     {% endfor %}
@@ -124,6 +132,15 @@
 </div>
 
 <script>
+    // Control para Ocultar / Mostrar Sidebar
+    const toggleSidebarBtn = document.getElementById('toggleSidebar');
+    const sidebar = document.getElementById('sidebar');
+
+    toggleSidebarBtn.addEventListener('click', () => {
+        sidebar.classList.toggle('-ml-72');
+    });
+
+    // Lógica del Chat
     const chatForm = document.getElementById('chatForm');
     const mensajeInput = document.getElementById('mensajeInput');
     const chatContainer = document.getElementById('chatContainer');
@@ -173,8 +190,8 @@
         const div = document.createElement('div');
         div.className = 'flex justify-end';
         div.innerHTML = `
-            <div class="max-w-xl bg-blue-600 text-white p-3.5 rounded-2xl rounded-tr-none text-sm shadow">
-                <p class="whitespace-pre-wrap">${texto}</p>
+            <div class="max-w-xl bg-blue-600 text-white p-3.5 rounded-2xl rounded-tr-none text-sm shadow break-words overflow-hidden">
+                <p class="whitespace-pre-wrap break-words">${texto}</p>
                 <span class="block text-[10px] text-blue-200 text-right mt-1">Ahora</span>
             </div>
         `;
@@ -190,13 +207,13 @@
         if (resp.citas && resp.citas.length > 0) {
             citasHtml = `<div class="mt-2 pt-2 border-t border-slate-700/60 text-xs text-amber-300/90 space-y-1">
                 <span class="font-semibold block text-[11px] text-amber-400">Leyes Consultadas:</span>
-                ${resp.citas.map(c => `<div class="bg-slate-900/50 p-1.5 rounded border border-slate-700/40">📜 ${c.ley} ${c.siglas ? '('+c.siglas+')' : ''} - Reforma: ${c.fecha_reforma}</div>`).join('')}
+                ${resp.citas.map(c => `<div class="bg-slate-900/50 p-1.5 rounded border border-slate-700/40 break-words">📜 ${c.ley} ${c.siglas ? '('+c.siglas+')' : ''} - Reforma: ${c.fecha_reforma}</div>`).join('')}
             </div>`;
         }
 
         div.innerHTML = `
-            <div class="max-w-2xl bg-slate-800 border border-slate-700 text-slate-200 p-4 rounded-2xl rounded-tl-none text-sm space-y-2 shadow">
-                <p class="whitespace-pre-wrap">${resp.contenido}</p>
+            <div class="max-w-2xl bg-slate-800 border border-slate-700 text-slate-200 p-4 rounded-2xl rounded-tl-none text-sm space-y-2 shadow break-words overflow-hidden">
+                <p class="whitespace-pre-wrap break-words">${resp.contenido}</p>
                 ${citasHtml}
                 <div class="flex items-center justify-between pt-1 text-[10px] text-slate-400 border-t border-slate-700/40">
                     <span>Proveedor: <strong class="text-slate-300">${resp.proveedor}</strong></span>

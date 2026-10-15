@@ -38,8 +38,8 @@ class UsuarioManager(BaseUserManager):
 
 class Usuario(AbstractBaseUser, PermissionsMixin):
     """
-    Tabla: usuarios[cite: 2]
-    Gestión de cuentas para los roles del sistema (Administrador, Gestor, Usuario Registrado)[cite: 1, 2].
+    Tabla: usuarios
+    Gestión de cuentas para los roles del sistema (Administrador, Gestor, Usuario Registrado).
     """
     class Rol(models.TextChoices):
         ADMINISTRADOR = 'ADMINISTRADOR', 'Administrador'
@@ -98,8 +98,8 @@ class Usuario(AbstractBaseUser, PermissionsMixin):
 
 class LeyFederal(models.Model):
     """
-    Tabla: leyes_federales[cite: 2]
-    Registro principal de las leyes ingresadas al sistema[cite: 2].
+    Tabla: leyes_federales
+    Registro principal de las leyes ingresadas al sistema.
     """
     class Estado(models.TextChoices):
         VIGENTE = 'VIGENTE', 'Vigente'
@@ -162,8 +162,8 @@ class LeyFederal(models.Model):
 
 class FragmentoNormativo(models.Model):
     """
-    Tabla: fragmentos_normativos[cite: 2]
-    Fragmentos de texto (chunks) vectorizados con sentence-transformers (dim=768)[cite: 1, 2].
+    Tabla: fragmentos_normativos
+    Fragmentos de texto (chunks) vectorizados con sentence-transformers (dim=768).
     """
     ley = models.ForeignKey(
         LeyFederal, 
@@ -201,8 +201,8 @@ class FragmentoNormativo(models.Model):
 
 class Conversacion(models.Model):
     """
-    Tabla: conversacion[cite: 2]
-    Contenedor del historial de chat de usuarios autenticados[cite: 1, 2].
+    Tabla: conversacion
+    Contenedor del historial de chat de usuarios autenticados.
     """
     id = models.UUIDField(
         primary_key=True, 
@@ -240,8 +240,8 @@ class Conversacion(models.Model):
 
 class Mensaje(models.Model):
     """
-    Tabla: mensajes[cite: 2]
-    Detalle de consultas y respuestas generadas[cite: 2].
+    Tabla: mensajes
+    Detalle de consultas y respuestas generadas.
     """
     class Emisor(models.TextChoices):
         USUARIO = 'USUARIO', 'Usuario'
@@ -299,8 +299,8 @@ class Mensaje(models.Model):
 
 class RegistroFalloAPI(models.Model):
     """
-    Tabla: registros_fallos_api[cite: 2]
-    Auditoría de conmutación y monitoreo de límites de tasa (Rate Limits)[cite: 1, 2].
+    Tabla: registros_fallos_api
+    Auditoría de conmutación y monitoreo de límites de tasa (Rate Limits).
     """
     class ProveedorIA(models.TextChoices):
         GROQ = 'GROQ', 'Groq Cloud'
