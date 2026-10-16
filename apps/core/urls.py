@@ -21,6 +21,7 @@ urlpatterns = [
 
     # Gestor
     path('gestor-panel/', gestor_views.gestor_dashboard_view, name='gestor_dashboard'),
+    path('gestor-panel/documentos/previsualizar/', gestor_views.previsualizar_documento_view, name='gestor_previsualizar_documento'),
     path('gestor-panel/documentos/cargar/', gestor_views.cargar_documento_view, name='gestor_cargar_documento'),
     path('gestor-panel/documentos/<int:ley_id>/editar/', gestor_views.editar_ley_view, name='gestor_editar_ley'),
     path('gestor-panel/perfil/', gestor_views.perfil_gestor_view, name='gestor_perfil'),

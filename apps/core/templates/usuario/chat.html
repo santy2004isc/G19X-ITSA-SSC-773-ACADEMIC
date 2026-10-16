@@ -104,7 +104,7 @@
                                 {% endif %}
                             </div>
 
-                            <p class="whitespace-pre-wrap leading-relaxed break-words">{{ msg.contenido_texto }}</p>
+                            <div class="markdown-content leading-relaxed break-words">{{ msg.contenido_texto }}</div>
 
                             {% if msg.citas %}
                             <div class="bg-slate-50 border border-slate-200 rounded-lg p-3 text-xs space-y-1.5 mt-2 break-words">
@@ -134,9 +134,9 @@
         </div>
 
         <!-- Indicador -->
-        <div id="thinkingIndicator" class="hidden px-6 py-2 bg-slate-50 border-t border-slate-100 flex items-center space-x-2 text-xs text-slate-500">
+        <div id="thinkingIndicator" class="hidden px-6 py-2 bg-slate-50 border-t border-slate-100 flex items-center space-x-2 text-xs text-slate-500" aria-live="polite">
             <svg class="w-4 h-4 text-blue-600 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
-            <span>Buscando lo solicitado de leyes...</span>
+            <span>Buscando en la legislación y preparando una respuesta...</span>
         </div>
 
         <!-- Formulario Chat -->
@@ -169,12 +169,65 @@
     const chatInput = document.getElementById('chatInput');
     const conversacionIdInput = document.getElementById('conversacionId');
     const thinkingIndicator = document.getElementById('thinkingIndicator');
+    const btnEnviar = document.getElementById('btnEnviar');
     const emptyState = document.getElementById('emptyState');
     const badgeCuota = document.getElementById('badgeCuota');
 
     function scrollToBottom() {
         chatContainer.scrollTop = chatContainer.scrollHeight;
     }
+    function renderizarMarkdown(texto) {
+        const escapar = valor => String(valor ?? '').replace(/[&<>"']/g, caracter => (
+            {'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[caracter]
+        ));
+        const inline = valor => escapar(valor)
+            .replace(/`([^`]+)`/g, '<code class="rounded bg-slate-100 px-1 py-0.5 font-mono text-blue-800">$1</code>')
+            .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+            .replace(/__(.+?)__/g, '<strong>$1</strong>')
+            .replace(/(^|[^*])\*([^*\n]+)\*(?!\*)/g, '$1<em>$2</em>');
+        const lineas = String(texto ?? '').replace(/\r/g, '').split('\n');
+        const salida = [];
+        const celdas = linea => linea.trim().replace(/^\|/, '').replace(/\|$/, '').split('|').map(celda => celda.trim());
+        const esSeparadorTabla = linea => celdas(linea).length > 1 && celdas(linea).every(celda => /^:?-{3,}:?$/.test(celda));
+        for (let i = 0; i < lineas.length;) {
+            if (!lineas[i].trim()) { i++; continue; }
+            if (i + 1 < lineas.length && lineas[i].includes('|') && esSeparadorTabla(lineas[i + 1])) {
+                const encabezados = celdas(lineas[i]);
+                i += 2;
+                const filas = [];
+                while (i < lineas.length && lineas[i].includes('|') && lineas[i].trim()) filas.push(celdas(lineas[i++]));
+                salida.push(`<div class="my-3 max-w-full overflow-x-auto rounded-lg border border-slate-200"><table class="w-full border-collapse text-left text-xs"><thead class="bg-slate-100 text-slate-700"><tr>${encabezados.map(celda => `<th class="border-b border-slate-200 px-3 py-2 font-semibold">${inline(celda)}</th>`).join('')}</tr></thead><tbody>${filas.map(fila => `<tr class="odd:bg-white even:bg-slate-50">${encabezados.map((_, indice) => `<td class="border-t border-slate-100 px-3 py-2 align-top">${inline(fila[indice] || '')}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`);
+                continue;
+            }
+            const heading = lineas[i].match(/^(#{1,3})\s+(.+)$/);
+            if (heading) {
+                const nivel = heading[1].length;
+                salida.push(`<h${nivel + 2} class="mb-1 mt-3 font-bold text-slate-900">${inline(heading[2])}</h${nivel + 2}>`);
+                i++;
+                continue;
+            }
+            if (/^\s*(?:[-*]|\d+\.)\s+/.test(lineas[i])) {
+                const numerada = /^\s*\d+\./.test(lineas[i]);
+                const items = [];
+                while (i < lineas.length && /^\s*(?:[-*]|\d+\.)\s+/.test(lineas[i])) {
+                    items.push(lineas[i++].replace(/^\s*(?:[-*]|\d+\.)\s+/, ''));
+                }
+                const tag = numerada ? 'ol' : 'ul';
+                salida.push(`<${tag} class="my-2 list-inside ${numerada ? 'list-decimal' : 'list-disc'} space-y-1 pl-2">${items.map(item => `<li>${inline(item)}</li>`).join('')}</${tag}>`);
+                continue;
+            }
+            const parrafo = [];
+            while (i < lineas.length && lineas[i].trim() && !(i + 1 < lineas.length && lineas[i].includes('|') && esSeparadorTabla(lineas[i + 1])) && !/^(#{1,3})\s+/.test(lineas[i]) && !/^\s*(?:[-*]|\d+\.)\s+/.test(lineas[i])) {
+                parrafo.push(lineas[i++]);
+            }
+            salida.push(`<p class="my-2 whitespace-pre-wrap">${inline(parrafo.join('\n')).replace(/\n/g, '<br>')}</p>`);
+        }
+        return salida.join('');
+    }
+
+    document.querySelectorAll('#chatContainer .markdown-content').forEach(function(elemento) {
+        elemento.innerHTML = renderizarMarkdown(elemento.textContent);
+    });
     scrollToBottom();
 
     chatForm.addEventListener('submit', async function(e) {
@@ -195,6 +248,9 @@
         `;
         chatContainer.insertAdjacentHTML('beforeend', userMsgHtml);
         chatInput.value = '';
+        chatInput.disabled = true;
+        btnEnviar.disabled = true;
+        btnEnviar.classList.add('opacity-60', 'cursor-not-allowed');
         scrollToBottom();
 
         thinkingIndicator.classList.remove('hidden');
@@ -250,7 +306,7 @@
                                 </span>
                                 <span class="text-[10px] text-slate-400">IA: ${data.respuesta.proveedor}${data.respuesta.conmutado ? ' (Fallback)' : ''}</span>
                             </div>
-                            <p class="whitespace-pre-wrap leading-relaxed break-words">${escapeHtml(data.respuesta.contenido)}</p>
+                            <div class="markdown-content leading-relaxed break-words">${renderizarMarkdown(data.respuesta.contenido)}</div>
                             ${citasHtml}
                             <span class="block text-right text-[10px] text-slate-400 mt-1">${data.respuesta.fecha}</span>
                         </div>
@@ -265,14 +321,19 @@
 
         } catch (error) {
             thinkingIndicator.classList.add('hidden');
-            alert('Error de conexión con el servidor.');
+            alert(error.message || 'Error de conexión con el servidor.');
+        } finally {
+            chatInput.disabled = false;
+            btnEnviar.disabled = false;
+            btnEnviar.classList.remove('opacity-60', 'cursor-not-allowed');
+            chatInput.focus();
         }
     });
 
     function escapeHtml(text) {
-        const div = document.createElement('div');
-        div.innerText = text;
-        return div.innerHTML;
+        return String(text ?? '').replace(/[&<>"']/g, caracter => (
+            {'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[caracter]
+        ));
     }
 </script>
 {% endblock %}

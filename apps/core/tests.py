@@ -13,6 +13,7 @@ from .services.pdf_processor import (
     _fragmentar_texto_estructurado,
     procesar_pdf_en_memoria,
     calcular_hash_fragmento,
+    extraer_metadatos_primera_pagina,
 )
 from .services.chat_service import (
     generar_respuesta_ia_con_fallback,
@@ -191,6 +192,34 @@ class ControlDeRolesTest(TestCase):
         self.assertEqual(ley.fragmentos.count(), 1)
         mock_embedding.assert_not_called()
 
+    @patch('apps.core.views.gestor.gestor_views.generar_vector_embedding', return_value=[0.0] * 768)
+    def test_fragmento_repetido_se_deduplica_en_una_ley_y_se_acepta_en_otra(self, mock_embedding):
+        from .views.gestor.gestor_views import _crear_fragmentos_normativos
+
+        ley_a = LeyFederal.objects.create(
+            nombre='Ley A',
+            fecha_publicacion=timezone.now().date(),
+            hash_documento='1' * 64,
+        )
+        ley_b = LeyFederal.objects.create(
+            nombre='Ley B',
+            fecha_publicacion=timezone.now().date(),
+            hash_documento='2' * 64,
+        )
+        repetido = 'Artículo 1. Texto legal compartido.'
+
+        FragmentoNormativo.objects.bulk_create(
+            _crear_fragmentos_normativos(ley_a, [repetido, repetido])
+        )
+        FragmentoNormativo.objects.bulk_create(
+            _crear_fragmentos_normativos(ley_b, [repetido])
+        )
+
+        self.assertEqual(FragmentoNormativo.objects.count(), 2)
+        self.assertEqual(ley_a.fragmentos.count(), 1)
+        self.assertEqual(ley_b.fragmentos.count(), 1)
+        self.assertEqual(mock_embedding.call_count, 2)
+
 
 class PDFProcessorTest(TestCase):
     """
@@ -209,6 +238,30 @@ class PDFProcessorTest(TestCase):
         texto = "Texto legal de prueba"
         hash_calc = calcular_hash_fragmento(texto)
         self.assertEqual(len(hash_calc), 64)
+        self.assertNotEqual(calcular_hash_fragmento(texto, 1), calcular_hash_fragmento(texto, 2))
+        self.assertEqual(
+            calcular_hash_fragmento(texto, 1),
+            calcular_hash_fragmento(f" {texto}  ", 1),
+        )
+
+    @patch('apps.core.services.pdf_processor.pypdf.PdfReader')
+    def test_extrae_sugerencias_de_la_primera_pagina(self, mock_pdf_reader):
+        pagina = MagicMock()
+        pagina.extract_text.return_value = (
+            'LEY FEDERAL DEL TRABAJO (LFT)\n'
+            'Publicada en el Diario Oficial de la Federación el 1 de abril de 1970.\n'
+            'Última reforma publicada el 24 de enero de 2024.'
+        )
+        mock_pdf_reader.return_value.pages = [pagina]
+        archivo = io.BytesIO(b'contenido PDF')
+        archivo.name = 'ley.pdf'
+
+        metadatos = extraer_metadatos_primera_pagina(archivo)
+
+        self.assertEqual(metadatos['nombre'], 'LEY FEDERAL DEL TRABAJO (LFT)')
+        self.assertEqual(metadatos['siglas'], 'LFT')
+        self.assertEqual(metadatos['fecha_publicacion'], '1970-04-01')
+        self.assertEqual(metadatos['fecha_ultima_reforma'], '2024-01-24')
 
     def test_rechazo_archivo_no_valido(self):
         archivo_invalido = io.BytesIO(b"No soy un archivo PDF real")

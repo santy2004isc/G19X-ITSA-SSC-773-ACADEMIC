@@ -43,12 +43,18 @@
 
             <div>
                 <label class="block text-sm font-medium text-slate-700 mb-1">{{ form.archivo_pdf.label }}</label>
-                <div id="zonaSoltarPdf" class="relative flex min-h-28 cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed border-slate-300 bg-slate-50 px-4 py-5 text-center transition hover:border-blue-400 hover:bg-blue-50">
+                <div id="zonaSoltarPdf" class="relative flex min-h-44 cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed border-blue-400 bg-blue-50 px-6 py-7 text-center shadow-sm transition hover:border-blue-600 hover:bg-blue-100">
                     {{ form.archivo_pdf }}
-                    <span class="pointer-events-none text-sm font-medium text-slate-700">Arrastra tu PDF aquí o haz clic para buscarlo</span>
-                    <span id="nombreArchivoPdf" class="pointer-events-none mt-1 text-xs text-slate-500">Ningún archivo seleccionado</span>
+                    <svg class="pointer-events-none mb-3 h-10 w-10 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M12 16V4m0 0L7 9m5-5 5 5M5 14v4a2 2 0 002 2h10a2 2 0 002-2v-4"/>
+                    </svg>
+                    <span class="pointer-events-none text-base font-bold text-blue-900">Suelta aquí tu documento</span>
+                    <span class="pointer-events-none mt-1 text-sm text-blue-800">o <span class="font-semibold underline">haz clic para elegir un PDF</span></span>
+                    <span class="pointer-events-none mt-3 rounded-full bg-white px-3 py-1 text-xs font-medium text-slate-600 shadow-sm">PDF · hasta 50 MB</span>
+                    <span id="nombreArchivoPdf" class="pointer-events-none mt-2 max-w-full truncate text-xs font-semibold text-slate-700">Ningún archivo seleccionado</span>
                 </div>
                 <p class="text-xs text-slate-400 mt-1">{{ form.archivo_pdf.help_text }}</p>
+                <p id="estadoAnalisisPdf" class="mt-2 min-h-5 text-xs font-medium text-blue-700" aria-live="polite"></p>
                 {% if form.archivo_pdf.errors %}<p class="text-red-500 text-xs mt-1">{{ form.archivo_pdf.errors.0 }}</p>{% endif %}
             </div>
 
@@ -79,13 +85,67 @@
     const inputArchivoPdf = document.getElementById('input_archivo_pdf');
     const zonaSoltarPdf = document.getElementById('zonaSoltarPdf');
     const nombreArchivoPdf = document.getElementById('nombreArchivoPdf');
+    const estadoAnalisisPdf = document.getElementById('estadoAnalisisPdf');
+    const campos = {
+        nombre: document.getElementById('id_nombre'),
+        siglas: document.getElementById('id_siglas'),
+        fecha_publicacion: document.getElementById('id_fecha_publicacion'),
+        fecha_ultima_reforma: document.getElementById('id_fecha_ultima_reforma'),
+        estado: document.getElementById('id_estado'),
+    };
+    const camposEditados = new Set();
+    let solicitudAnalisis = 0;
+
+    Object.entries(campos).forEach(function([nombre, campo]) {
+        if (campo) campo.addEventListener('input', function() { camposEditados.add(nombre); });
+    });
 
     function mostrarArchivoPdf(archivo) {
         nombreArchivoPdf.textContent = archivo ? archivo.name : 'Ningún archivo seleccionado';
     }
 
+    async function analizarPrimeraPagina(archivo) {
+        const idSolicitud = ++solicitudAnalisis;
+        if (!archivo) {
+            estadoAnalisisPdf.textContent = '';
+            return;
+        }
+        if (!archivo.name.toLowerCase().endsWith('.pdf')) {
+            estadoAnalisisPdf.textContent = 'Selecciona un archivo PDF para analizarlo.';
+            estadoAnalisisPdf.className = 'mt-2 min-h-5 text-xs font-medium text-red-600';
+            return;
+        }
+
+        estadoAnalisisPdf.textContent = 'Leyendo la primera página para sugerir los datos...';
+        estadoAnalisisPdf.className = 'mt-2 min-h-5 text-xs font-medium text-blue-700';
+        const datos = new FormData();
+        datos.append('archivo_pdf', archivo);
+        try {
+            const response = await fetch("{% url 'gestor_previsualizar_documento' %}", {
+                method: 'POST',
+                headers: {'X-CSRFToken': '{{ csrf_token }}'},
+                body: datos,
+            });
+            const resultado = await response.json();
+            if (idSolicitud !== solicitudAnalisis) return;
+            if (!response.ok) throw new Error(resultado.error || 'No se pudo analizar el documento.');
+
+            Object.entries(resultado.metadatos).forEach(function([nombre, valor]) {
+                const campo = campos[nombre];
+                if (campo && valor && !camposEditados.has(nombre)) campo.value = valor;
+            });
+            estadoAnalisisPdf.textContent = 'Sugerencias obtenidas de la primera página. Revísalas y corrígelas si es necesario.';
+            estadoAnalisisPdf.className = 'mt-2 min-h-5 text-xs font-medium text-emerald-700';
+        } catch (error) {
+            if (idSolicitud !== solicitudAnalisis) return;
+            estadoAnalisisPdf.textContent = error.message;
+            estadoAnalisisPdf.className = 'mt-2 min-h-5 text-xs font-medium text-red-600';
+        }
+    }
+
     inputArchivoPdf.addEventListener('change', function() {
         mostrarArchivoPdf(this.files[0]);
+        analizarPrimeraPagina(this.files[0]);
     });
     ['dragenter', 'dragover'].forEach(function(eventName) {
         zonaSoltarPdf.addEventListener(eventName, function(event) {
@@ -106,6 +166,7 @@
             transferencia.items.add(archivos[0]);
             inputArchivoPdf.files = transferencia.files;
             mostrarArchivoPdf(archivos[0]);
+            analizarPrimeraPagina(archivos[0]);
         }
     });
 

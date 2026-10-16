@@ -129,6 +129,88 @@ def procesar_pdf_en_memoria(file_obj, chunk_size=1000, overlap=150):
     return hash_archivo, hash_contenido, chunks
 
 
+def extraer_metadatos_primera_pagina(file_obj):
+    """Extrae sugerencias de metadatos desde la primera página del PDF."""
+    try:
+        reader = pypdf.PdfReader(io.BytesIO(file_obj.read()))
+        if not reader.pages:
+            raise ValidationError("El PDF no contiene páginas.")
+        texto = reader.pages[0].extract_text() or ""
+    except ValidationError:
+        raise
+    except Exception as error:
+        raise ValidationError(f"No se pudo leer la primera página del PDF: {error}")
+
+    lineas = [re.sub(r"\s+", " ", linea).strip() for linea in texto.splitlines()]
+    lineas = [linea for linea in lineas if linea]
+    titulo = next(
+        (
+            linea for linea in lineas[:15]
+            if re.search(r"\b(ley|c[oó]digo|constituci[oó]n|reglamento|decreto)\b", linea, re.I)
+            and len(linea) <= 500
+        ),
+        "",
+    )
+
+    nombre_archivo = re.sub(r"\.pdf$", "", file_obj.name, flags=re.I)
+    nombre_archivo = re.sub(r"[_-]+", " ", nombre_archivo).strip()
+    nombre = titulo or nombre_archivo
+
+    siglas = next(iter(re.findall(r"\(([A-ZÁÉÍÓÚÜÑ]{2,10})\)", texto)), "")
+
+    meses = {
+        "enero": "01", "febrero": "02", "marzo": "03", "abril": "04",
+        "mayo": "05", "junio": "06", "julio": "07", "agosto": "08",
+        "septiembre": "09", "setiembre": "09", "octubre": "10",
+        "noviembre": "11", "diciembre": "12",
+    }
+
+    def fechas_en(texto_fecha):
+        fechas = []
+        for match in re.finditer(
+            r"\b(\d{1,2})\s+de\s+([a-záéíóú]+)\s+de\s+(\d{4})\b",
+            texto_fecha,
+            re.I,
+        ):
+            mes = meses.get(match.group(2).lower())
+            if mes:
+                fechas.append((match.start(), f"{match.group(3)}-{mes}-{int(match.group(1)):02d}"))
+        for match in re.finditer(r"\b(\d{1,2})[/-](\d{1,2})[/-](\d{4})\b", texto_fecha):
+            dia, mes, anio = match.groups()
+            if 1 <= int(mes) <= 12 and 1 <= int(dia) <= 31:
+                fechas.append((match.start(), f"{anio}-{int(mes):02d}-{int(dia):02d}"))
+        return sorted(fechas)
+
+    fechas = fechas_en(texto)
+    fecha_publicacion = ""
+    fecha_reforma = ""
+    if fechas:
+        fecha_publicacion = fechas[0][1]
+        for coincidencia in re.finditer(
+            r"publicad[oa]|publicaci[oó]n|diario oficial|d\.?\s*o\.?\s*f\.?",
+            texto,
+            re.I,
+        ):
+            fecha_publicacion = min(
+                fechas,
+                key=lambda fecha: abs(fecha[0] - coincidencia.start()),
+            )[1]
+            break
+        for coincidencia in re.finditer(r"reform", texto, re.I):
+            fecha_cercana = min(fechas, key=lambda fecha: abs(fecha[0] - coincidencia.start()))
+            fecha_reforma = fecha_cercana[1]
+            break
+
+    estado = "ABROGADA" if re.search(r"\babrogad[ao]s?\b", texto, re.I) else ""
+    return {
+        "nombre": nombre[:500],
+        "siglas": siglas[:50],
+        "fecha_publicacion": fecha_publicacion,
+        "fecha_ultima_reforma": fecha_reforma,
+        "estado": estado,
+    }
+
+
 def generar_vector_embedding(texto):
     """
     Genera el vector embedding localmente usando sentence-transformers (RF-2.3).
@@ -138,8 +220,8 @@ def generar_vector_embedding(texto):
     return embedding.tolist()
 
 
-def calcular_hash_fragmento(texto):
-    """
-    Genera un hash SHA-256 del contenido del fragmento para evitar duplicaciones.
-    """
-    return hashlib.sha256(texto.encode('utf-8')).hexdigest()
+def calcular_hash_fragmento(texto, ley_id=None):
+    """Genera una huella estable que evita duplicados dentro de la misma ley."""
+    texto_normalizado = " ".join(texto.split())
+    contenido = f"{ley_id}:{texto_normalizado}" if ley_id is not None else texto_normalizado
+    return hashlib.sha256(contenido.encode("utf-8")).hexdigest()

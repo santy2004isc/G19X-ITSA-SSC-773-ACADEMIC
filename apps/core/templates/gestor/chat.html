@@ -14,6 +14,16 @@
                 </span>
                 <span class="text-[10px] text-slate-400 bg-slate-800 px-2 py-0.5 rounded">Consultas Ilimitadas</span>
             </div>
+            <div id="respuestaPendiente" class="hidden px-6 pb-3" aria-live="polite">
+                <div class="inline-flex items-center gap-3 rounded-2xl rounded-tl-none border border-slate-700 bg-slate-800 px-4 py-3 text-sm text-slate-300 shadow">
+                    <span class="flex gap-1" aria-hidden="true">
+                        <span class="h-2 w-2 animate-bounce rounded-full bg-amber-400"></span>
+                        <span class="h-2 w-2 animate-bounce rounded-full bg-amber-400 [animation-delay:150ms]"></span>
+                        <span class="h-2 w-2 animate-bounce rounded-full bg-amber-400 [animation-delay:300ms]"></span>
+                    </span>
+                    <span>Buscando en las leyes y redactando respuesta...</span>
+                </div>
+            </div>
 
             <!-- Botón Nueva Conversación -->
             <form action="{% url 'gestor_crear_conversacion' %}" method="POST">
@@ -80,7 +90,7 @@
                 {% if msg.emisor == 'USUARIO' %}
                     <div class="flex justify-end">
                         <div class="max-w-xl bg-blue-600 text-white p-3.5 rounded-2xl rounded-tr-none text-sm shadow break-words overflow-hidden">
-                            <p class="whitespace-pre-wrap break-words">{{ msg.contenido_texto }}</p>
+                            <div class="markdown-content leading-relaxed break-words">{{ msg.contenido_texto }}</div>
                             <span class="block text-[10px] text-blue-200 text-right mt-1">{{ msg.fecha_envio|date:"H:i" }}</span>
                         </div>
                     </div>
@@ -145,6 +155,65 @@
     const mensajeInput = document.getElementById('mensajeInput');
     const chatContainer = document.getElementById('chatContainer');
     const conversacionIdInput = document.getElementById('conversacionId');
+    const btnEnviar = document.getElementById('btnEnviar');
+    const respuestaPendiente = document.getElementById('respuestaPendiente');
+
+    function escaparHtml(texto) {
+        return String(texto ?? '').replace(/[&<>"']/g, function(caracter) {
+            return {'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[caracter];
+        });
+    }
+
+    function renderizarMarkdown(texto) {
+        const lineas = String(texto ?? '').replace(/\r/g, '').split('\n');
+        const salida = [];
+        const celdas = linea => linea.trim().replace(/^\|/, '').replace(/\|$/, '').split('|').map(celda => celda.trim());
+        const esSeparadorTabla = linea => celdas(linea).length > 1 && celdas(linea).every(celda => /^:?-{3,}:?$/.test(celda));
+        const inline = valor => escaparHtml(valor)
+            .replace(/`([^`]+)`/g, '<code class="rounded bg-slate-900/70 px-1 py-0.5 font-mono text-amber-200">$1</code>')
+            .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+            .replace(/__(.+?)__/g, '<strong>$1</strong>')
+            .replace(/(^|[^*])\*([^*\n]+)\*(?!\*)/g, '$1<em>$2</em>');
+
+        for (let i = 0; i < lineas.length;) {
+            if (!lineas[i].trim()) { i++; continue; }
+            if (i + 1 < lineas.length && lineas[i].includes('|') && esSeparadorTabla(lineas[i + 1])) {
+                const encabezados = celdas(lineas[i]);
+                i += 2;
+                const filas = [];
+                while (i < lineas.length && lineas[i].includes('|') && lineas[i].trim()) filas.push(celdas(lineas[i++]));
+                salida.push(`<div class="my-3 max-w-full overflow-x-auto rounded-lg border border-slate-700"><table class="w-full border-collapse text-left text-xs"><thead class="bg-slate-900 text-amber-300"><tr>${encabezados.map(celda => `<th class="border-b border-slate-700 px-3 py-2 font-semibold">${inline(celda)}</th>`).join('')}</tr></thead><tbody>${filas.map(fila => `<tr class="odd:bg-slate-800 even:bg-slate-900/50">${encabezados.map((_, indice) => `<td class="border-t border-slate-700/70 px-3 py-2 align-top">${inline(fila[indice] || '')}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`);
+                continue;
+            }
+            const heading = lineas[i].match(/^(#{1,3})\s+(.+)$/);
+            if (heading) {
+                const nivel = heading[1].length;
+                salida.push(`<h${nivel + 2} class="mb-1 mt-3 font-bold text-white">${inline(heading[2])}</h${nivel + 2}>`);
+                i++;
+                continue;
+            }
+            if (/^\s*(?:[-*]|\d+\.)\s+/.test(lineas[i])) {
+                const numerada = /^\s*\d+\./.test(lineas[i]);
+                const items = [];
+                while (i < lineas.length && /^\s*(?:[-*]|\d+\.)\s+/.test(lineas[i])) {
+                    items.push(lineas[i++].replace(/^\s*(?:[-*]|\d+\.)\s+/, ''));
+                }
+                const tag = numerada ? 'ol' : 'ul';
+                salida.push(`<${tag} class="my-2 list-inside ${numerada ? 'list-decimal' : 'list-disc'} space-y-1 pl-2">${items.map(item => `<li>${inline(item)}</li>`).join('')}</${tag}>`);
+                continue;
+            }
+            const parrafo = [];
+            while (i < lineas.length && lineas[i].trim() && !(i + 1 < lineas.length && lineas[i].includes('|') && esSeparadorTabla(lineas[i + 1])) && !/^(#{1,3})\s+/.test(lineas[i]) && !/^\s*(?:[-*]|\d+\.)\s+/.test(lineas[i])) {
+                parrafo.push(lineas[i++]);
+            }
+            salida.push(`<p class="my-2 whitespace-pre-wrap">${inline(parrafo.join('\n')).replace(/\n/g, '<br>')}</p>`);
+        }
+        return salida.join('');
+    }
+
+    document.querySelectorAll('#chatContainer .markdown-content').forEach(function(elemento) {
+        elemento.innerHTML = renderizarMarkdown(elemento.textContent);
+    });
 
     chatForm.addEventListener('submit', async (e) => {
         e.preventDefault();
@@ -155,6 +224,10 @@
 
         renderizarMensajeUsuario(mensaje);
         mensajeInput.value = '';
+        mensajeInput.disabled = true;
+        btnEnviar.disabled = true;
+        btnEnviar.classList.add('opacity-60', 'cursor-not-allowed');
+        respuestaPendiente.classList.remove('hidden');
 
         try {
             const response = await fetch("{% url 'gestor_enviar_mensaje_api' %}", {
@@ -170,10 +243,8 @@
             });
 
             const data = await response.json();
-
             if (!response.ok) {
-                alert(data.error || 'Ocurrió un error al procesar la solicitud.');
-                return;
+                throw new Error(data.error || 'Ocurrió un error al procesar la solicitud.');
             }
 
             if (!conversacion_id && data.conversacion_id) {
@@ -182,7 +253,13 @@
 
             renderizarRespuestaSistema(data.respuesta);
         } catch (err) {
-            alert('Error de conexión con el servidor.');
+            alert(err.message || 'Error de conexión con el servidor.');
+        } finally {
+            respuestaPendiente.classList.add('hidden');
+            mensajeInput.disabled = false;
+            btnEnviar.disabled = false;
+            btnEnviar.classList.remove('opacity-60', 'cursor-not-allowed');
+            mensajeInput.focus();
         }
     });
 
@@ -191,7 +268,7 @@
         div.className = 'flex justify-end';
         div.innerHTML = `
             <div class="max-w-xl bg-blue-600 text-white p-3.5 rounded-2xl rounded-tr-none text-sm shadow break-words overflow-hidden">
-                <p class="whitespace-pre-wrap break-words">${texto}</p>
+                <p class="whitespace-pre-wrap break-words">${escaparHtml(texto)}</p>
                 <span class="block text-[10px] text-blue-200 text-right mt-1">Ahora</span>
             </div>
         `;
@@ -207,13 +284,13 @@
         if (resp.citas && resp.citas.length > 0) {
             citasHtml = `<div class="mt-2 pt-2 border-t border-slate-700/60 text-xs text-amber-300/90 space-y-1">
                 <span class="font-semibold block text-[11px] text-amber-400">Leyes Consultadas:</span>
-                ${resp.citas.map(c => `<div class="bg-slate-900/50 p-1.5 rounded border border-slate-700/40 break-words">📜 ${c.ley} ${c.siglas ? '('+c.siglas+')' : ''} - Reforma: ${c.fecha_reforma}</div>`).join('')}
+                ${resp.citas.map(c => `<div class="bg-slate-900/50 p-1.5 rounded border border-slate-700/40 break-words">📜 ${escaparHtml(c.ley)} ${c.siglas ? '('+escaparHtml(c.siglas)+')' : ''} - Reforma: ${escaparHtml(c.fecha_reforma)}</div>`).join('')}
             </div>`;
         }
 
         div.innerHTML = `
             <div class="max-w-2xl bg-slate-800 border border-slate-700 text-slate-200 p-4 rounded-2xl rounded-tl-none text-sm space-y-2 shadow break-words overflow-hidden">
-                <p class="whitespace-pre-wrap break-words">${resp.contenido}</p>
+                <div class="markdown-content leading-relaxed break-words">${renderizarMarkdown(resp.contenido)}</div>
                 ${citasHtml}
                 <div class="flex items-center justify-between pt-1 text-[10px] text-slate-400 border-t border-slate-700/40">
                     <span>Proveedor: <strong class="text-slate-300">${resp.proveedor}</strong></span>
@@ -223,6 +300,7 @@
             </div>
         `;
         chatContainer.appendChild(div);
+        respuestaPendiente.classList.add('hidden');
         chatContainer.scrollTop = chatContainer.scrollHeight;
     }
 </script>

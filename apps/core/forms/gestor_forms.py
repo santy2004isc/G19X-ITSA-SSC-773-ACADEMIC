@@ -21,7 +21,7 @@ class CargarDocumentoForm(forms.ModelForm):
             'accept': '.pdf',
             'id': 'input_archivo_pdf',
         }),
-        help_text="Seleccione un archivo en formato .pdf legible."
+        help_text="PDF legible de una ley, código u otro documento normativo. Se analizará la primera página para sugerir los datos."
     )
     fecha_publicacion = forms.DateField(
         label="Fecha de Publicación",
@@ -64,7 +64,7 @@ class EditarLeyFederalForm(forms.ModelForm):
             'accept': '.pdf',
             'id': 'input_archivo_pdf',
         }),
-        help_text="Cargue un nuevo PDF únicamente si desea actualizar y re-vectorizar el contenido normativo."
+        help_text="Cargue un PDF nuevo para actualizar el contenido. Se analizará la primera página para sugerir los metadatos."
     )
     # format='%Y-%m-%d' corrige el problema de visualización en <input type="date">
     fecha_ultima_reforma = forms.DateField(
@@ -72,10 +72,14 @@ class EditarLeyFederalForm(forms.ModelForm):
         widget=forms.DateInput(format='%Y-%m-%d', attrs={'class': INPUT_STYLE, 'type': 'date', 'id': 'input_fecha_reforma'}),
         label="Fecha de Última Reforma"
     )
+    fecha_publicacion = forms.DateField(
+        widget=forms.DateInput(format='%Y-%m-%d', attrs={'class': INPUT_STYLE, 'type': 'date', 'id': 'input_fecha_publicacion'}),
+        label="Fecha de Publicación"
+    )
 
     class Meta:
         model = LeyFederal
-        fields = ['nombre', 'siglas', 'fecha_ultima_reforma', 'estado']
+        fields = ['nombre', 'siglas', 'fecha_publicacion', 'fecha_ultima_reforma', 'estado']
         widgets = {
             'nombre': forms.TextInput(attrs={'class': INPUT_STYLE}),
             'siglas': forms.TextInput(attrs={'class': INPUT_STYLE}),

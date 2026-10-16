@@ -2,17 +2,40 @@ from functools import wraps
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
+from django.core.exceptions import ValidationError
+from django.http import JsonResponse
 from django.db import transaction
 from django.db.models import Q
 from django.utils import timezone
+from django.views.decorators.http import require_POST
 
 from ...models import Usuario, LeyFederal, FragmentoNormativo
 from ...forms.gestor_forms import CargarDocumentoForm, EditarPerfilGestorForm, EditarLeyFederalForm
 from ...services.pdf_processor import (
     procesar_pdf_en_memoria,
+    extraer_metadatos_primera_pagina,
     generar_vector_embedding,
     calcular_hash_fragmento
 )
+
+
+def _crear_fragmentos_normativos(ley, chunks):
+    fragmentos = []
+    fragmentos_vistos = set()
+    for chunk in chunks:
+        clave = " ".join(chunk.split())
+        if clave in fragmentos_vistos:
+            continue
+        fragmentos_vistos.add(clave)
+        fragmentos.append(
+            FragmentoNormativo(
+                ley=ley,
+                contenido_fragmento=chunk,
+                vector_embedding=generar_vector_embedding(chunk),
+                hash_fragmento=calcular_hash_fragmento(chunk, ley.pk),
+            )
+        )
+    return fragmentos
 
 
 def gestor_required(view_func):
@@ -26,6 +49,25 @@ def gestor_required(view_func):
             return redirect('login')
         return view_func(request, *args, **kwargs)
     return _wrapped_view
+
+
+@login_required
+@gestor_required
+@require_POST
+def previsualizar_documento_view(request):
+    archivo = request.FILES.get("archivo_pdf")
+    if not archivo:
+        return JsonResponse({"error": "Selecciona un archivo PDF para analizar."}, status=400)
+    if not archivo.name.lower().endswith(".pdf"):
+        return JsonResponse({"error": "El archivo debe tener formato PDF."}, status=400)
+    if archivo.size > 50 * 1024 * 1024:
+        return JsonResponse({"error": "El PDF no puede exceder los 50 MB."}, status=400)
+
+    try:
+        metadatos = extraer_metadatos_primera_pagina(archivo)
+    except ValidationError as error:
+        return JsonResponse({"error": str(error)}, status=400)
+    return JsonResponse({"metadatos": metadatos})
 
 
 @login_required
@@ -83,23 +125,10 @@ def cargar_documento_view(request):
                     ley.hash_contenido = hash_contenido
                     ley.save()
 
-                    fragmentos_objetos = []
-                    for chunk in chunks:
-                        hash_frag = calcular_hash_fragmento(chunk)
-                        vector = generar_vector_embedding(chunk)
-                        
-                        fragmentos_objetos.append(
-                            FragmentoNormativo(
-                                ley=ley,
-                                contenido_fragmento=chunk,
-                                vector_embedding=vector,
-                                hash_fragmento=hash_frag
-                            )
-                        )
-
+                    fragmentos_objetos = _crear_fragmentos_normativos(ley, chunks)
                     FragmentoNormativo.objects.bulk_create(fragmentos_objetos)
 
-                messages.success(request, f"La norma '{ley.nombre}' fue procesada e indexada exitosamente con {len(chunks)} fragmentos vectoriales.")
+                messages.success(request, f"La norma '{ley.nombre}' fue procesada e indexada exitosamente con {len(fragmentos_objetos)} fragmentos únicos.")
                 return redirect('gestor_dashboard')
 
             except Exception as e:
@@ -157,20 +186,9 @@ def editar_ley_view(request, ley_id):
                             # Eliminar vectores/fragmentos anteriores e insertar los nuevos
                             FragmentoNormativo.objects.filter(ley=ley).delete()
 
-                            fragmentos_objetos = []
-                            for chunk in chunks:
-                                hash_frag = calcular_hash_fragmento(chunk)
-                                vector = generar_vector_embedding(chunk)
-                                fragmentos_objetos.append(
-                                    FragmentoNormativo(
-                                        ley=ley,
-                                        contenido_fragmento=chunk,
-                                        vector_embedding=vector,
-                                        hash_fragmento=hash_frag
-                                    )
-                                )
+                            fragmentos_objetos = _crear_fragmentos_normativos(ley, chunks)
                             FragmentoNormativo.objects.bulk_create(fragmentos_objetos)
-                            messages.success(request, f"La ley '{ley.nombre}' y sus fragmentos vectoriales ({len(chunks)}) fueron actualizados con éxito.")
+                            messages.success(request, f"La ley '{ley.nombre}' y sus fragmentos vectoriales ({len(fragmentos_objetos)} fragmentos únicos) fueron actualizados con éxito.")
                     else:
                         ley_actualizada.save()
                         messages.success(request, f"Los datos de la ley '{ley.nombre}' fueron actualizados correctamente.")
