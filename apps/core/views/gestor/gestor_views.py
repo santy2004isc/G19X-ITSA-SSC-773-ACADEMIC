@@ -4,6 +4,7 @@ from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.db import transaction
 from django.db.models import Q
+from django.utils import timezone
 
 from ...models import Usuario, LeyFederal, FragmentoNormativo
 from ...forms.gestor_forms import CargarDocumentoForm, EditarPerfilGestorForm, EditarLeyFederalForm
@@ -32,9 +33,11 @@ def gestor_required(view_func):
 def gestor_dashboard_view(request):
     """
     Dashboard del Gestor con buscador por Nombre o Siglas.
+    Muestra todas las leyes federales cargadas en el sistema, permitiendo
+    su visualización y actualización independientemente de qué usuario las cargó.
     """
     query = request.GET.get('q', '').strip()
-    leyes = LeyFederal.objects.filter(usuario=request.user)
+    leyes = LeyFederal.objects.select_related('usuario', 'usuario_modificacion').all()
 
     if query:
         leyes = leyes.filter(
@@ -42,11 +45,11 @@ def gestor_dashboard_view(request):
         )
 
     leyes = leyes.order_by('-fecha_creacion')
-    total_fragmentos = FragmentoNormativo.objects.filter(ley__usuario=request.user).count()
+    total_fragmentos = FragmentoNormativo.objects.count()
 
     context = {
         'leyes': leyes,
-        'total_leyes': LeyFederal.objects.filter(usuario=request.user).count(),
+        'total_leyes': LeyFederal.objects.count(),
         'total_fragmentos': total_fragmentos,
         'query': query,
     }
@@ -110,7 +113,7 @@ def editar_ley_view(request, ley_id):
     """
     Permite actualizar metadatos y re-procesar los fragmentos vectoriales de una ley.
     """
-    ley = get_object_or_404(LeyFederal, id=ley_id, usuario=request.user)
+    ley = get_object_or_404(LeyFederal, id=ley_id)
     
     if request.method == 'POST':
         form = EditarLeyFederalForm(request.POST, request.FILES, instance=ley)
@@ -120,6 +123,8 @@ def editar_ley_view(request, ley_id):
             try:
                 with transaction.atomic():
                     ley_actualizada = form.save(commit=False)
+                    ley_actualizada.usuario_modificacion = request.user
+                    ley_actualizada.fecha_modificacion = timezone.now()
                     
                     # Si se adjuntó un nuevo PDF, se reemplazan los fragmentos y vectores
                     if archivo_pdf:

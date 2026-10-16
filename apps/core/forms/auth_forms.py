@@ -46,11 +46,21 @@ class LoginForm(forms.Form):
 
         if correo and password:
             user = authenticate(username=correo, password=password)
-            if user is None:
+            if user is not None:
+                if not user.is_active:
+                    raise ValidationError("Esta cuenta se encuentra inactiva.")
+                cleaned_data['user'] = user
+            else:
+                # Si authenticate retornó None, verificar si el usuario existe y su contraseña coincide
+                # pero su cuenta está inactiva (is_active=False)
+                try:
+                    user_existente = Usuario.objects.get(correo_electronico__iexact=correo)
+                    if user_existente.check_password(password) and not user_existente.is_active:
+                        raise ValidationError("Esta cuenta se encuentra inactiva.")
+                except Usuario.DoesNotExist:
+                    pass
+
                 raise ValidationError("Correo electrónico o contraseña incorrectos.")
-            if not user.is_active:
-                raise ValidationError("Esta cuenta se encuentra inactiva.")
-            cleaned_data['user'] = user
 
         return cleaned_data
 

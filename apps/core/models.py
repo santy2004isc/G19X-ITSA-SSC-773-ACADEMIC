@@ -161,6 +161,19 @@ class LeyFederal(models.Model):
         auto_now_add=True, 
         verbose_name='Fecha de creación'
     )
+    usuario_modificacion = models.ForeignKey(
+        Usuario, 
+        on_delete=models.SET_NULL, 
+        null=True, 
+        blank=True, 
+        related_name='leyes_modificadas',
+        verbose_name='Usuario que modificó'
+    )
+    fecha_modificacion = models.DateTimeField(
+        null=True, 
+        blank=True, 
+        verbose_name='Fecha de última modificación'
+    )
 
     class Meta:
         db_table = 'leyes_federales'

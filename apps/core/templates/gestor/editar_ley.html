@@ -6,7 +6,33 @@
 <div class="min-h-screen bg-slate-50 flex items-center justify-center p-6">
     <div class="w-full max-w-xl bg-white rounded-xl shadow-lg border border-slate-200 p-8">
         <h1 class="text-xl font-bold text-slate-900 mb-1">Editar Ley Federal</h1>
-        <p class="text-xs text-slate-500 mb-6">Modifique los metadatos de la norma o cargue un nuevo PDF para re-vectorizar el contenido.</p>
+        <p class="text-xs text-slate-500 mb-4">Modifique los metadatos de la norma o cargue un nuevo PDF para re-vectorizar el contenido.</p>
+
+        <!-- Metadatos de Auditoría y Trazabilidad -->
+        <div class="bg-slate-50 border border-slate-200 rounded-lg p-3 text-xs text-slate-600 mb-5 grid grid-cols-1 sm:grid-cols-2 gap-2">
+            <div>
+                <span class="font-semibold text-slate-700 block">Cargada por:</span>
+                {% if ley.usuario %}
+                    {{ ley.usuario.nombre }} {{ ley.usuario.apellido }}
+                {% else %}
+                    <span class="italic text-slate-400">Usuario eliminado</span>
+                {% endif %}
+                <span class="text-[11px] text-slate-400 block">{{ ley.fecha_creacion|date:"d/m/Y H:i" }}</span>
+            </div>
+            <div>
+                <span class="font-semibold text-slate-700 block">Última modificación:</span>
+                {% if ley.fecha_modificacion %}
+                    {% if ley.usuario_modificacion %}
+                        {{ ley.usuario_modificacion.nombre }} {{ ley.usuario_modificacion.apellido }}
+                    {% else %}
+                        <span class="italic text-slate-400">Usuario eliminado</span>
+                    {% endif %}
+                    <span class="text-[11px] text-slate-400 block">{{ ley.fecha_modificacion|date:"d/m/Y H:i" }}</span>
+                {% else %}
+                    <span class="italic text-slate-400">Sin modificaciones</span>
+                {% endif %}
+            </div>
+        </div>
 
         <form id="formEditarLey" method="post" enctype="multipart/form-data" class="space-y-4">
             {% csrf_token %}
