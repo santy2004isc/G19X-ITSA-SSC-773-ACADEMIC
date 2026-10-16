@@ -6,23 +6,22 @@
 [![Django](https://img.shields.io/badge/Django-5.x-green.svg)](https://www.djangoproject.com/)
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16%20%2B%20pgvector-blue.svg)](https://github.com/pgvector/pgvector)
 [![TailwindCSS](https://img.shields.io/badge/Tailwind-CSS%20Standalone-38bdf8.svg)](https://tailwindcss.com/)
-[![Tests](https://img.shields.io/badge/Tests-19%2F19%20Passing-success.svg)]()
+[![Tests](https://img.shields.io/badge/Tests-24%20casos-informational.svg)]()
 [![Docker](https://img.shields.io/badge/Docker-Ready-2496ed.svg)](https://www.docker.com/)
 
 ---
 
 ## Características Principales
 
-* **Acceso Estrictamente Autenticado:** Protección global de todas las rutas mediante el middleware perimetral `AutenticacionRequeridaMiddleware`. Bloqueo absoluto a usuarios anónimos o no autorizados.
-* **Procesamiento de PDF en Memoria (Zero Persistent Storage):** Ingesta e indexación de leyes sin almacenar archivos PDF de forma física en el disco del servidor ni en la base de datos (procesamiento en streams `io.BytesIO`).
+* **Acceso por roles:** El middleware requiere inicio de sesión para las vistas privadas; login, registro y archivos estáticos son públicos. Las vistas restringen operaciones de administrador, gestor y usuario.
+* **Procesamiento de PDF sin archivo permanente:** El servicio procesa el archivo recibido y guarda metadatos y fragmentos vectoriales; la aplicación no conserva el PDF como documento consultable.
 * **Carga Completa y Deduplicación por Contenido:** Se extrae e indexa todo el texto legible del PDF. El sistema compara el hash del texto extraído, por lo que no vuelve a vectorizar una ley sin cambios aunque el archivo tenga metadatos PDF distintos; al editar una ley, conserva sus fragmentos existentes cuando el contenido no cambió. También conserva el hash binario para reconocer cargas históricas idénticas.
-* **Chunking Semántico y Estructurado:** Segmentación del documento completo respetando párrafos y oraciones, con solapamiento y límites máximos por fragmento. Las oraciones extensas se dividen en límites de palabra para que ninguna parte del texto quede fuera de la indexación.
+* **Fragmentación estructurada:** Segmentación del texto extraído respetando párrafos y oraciones, con solapamiento y límites máximos por fragmento. Las unidades extensas se dividen en límites de palabra.
 * **Carga cómoda de archivos:** El gestor puede seleccionar el PDF desde el explorador o arrastrarlo y soltarlo en el formulario de carga o actualización.
 * **Embeddings Locales:** Generación de representaciones vectoriales densas de 768 dimensiones ejecutada en el backend local utilizando `sentence-transformers` (`paraphrase-multilingual-mpnet-base-v2`), eliminando costos y cuotas externas para la indexación.
-* **Índices Vectoriales HNSW en `pgvector`:** Aceleración de la similitud coseno mediante el índice de grafos jerárquicos navegables `HnswIndex` (`vector_cosine_ops`), garantizando búsquedas sublineales en tiempo real.
+* **Índices Vectoriales HNSW en `pgvector`:** Índice `HnswIndex` (`vector_cosine_ops`) para recuperar candidatos por distancia coseno.
 * **Búsqueda Híbrida con Reciprocal Rank Fusion (RRF):** Fusión sinérgica entre la búsqueda semántica vectorial y el motor de *Full-Text Search* en español de PostgreSQL (`SearchVector` / `SearchQuery`), garantizando máxima precisión ante citas numéricas de artículos (ej. *"Artículo 123"*), siglas (*"LFT"*, *"CPEUM"*) o términos literales.
-* **Control de Cuota Diaria Anti-Abuso:** Asignación de cuota diaria configurable (50 mensajes/día por defecto) con reinicio atómico por fecha calendario (`date`).
-* **Interfaz adaptable:** Plantillas optimizadas para móviles, tabletas y escritorio; las tablas conservan sus columnas con desplazamiento horizontal y los nombres largos de leyes se ajustan en varias líneas.
+* **Control de cuota diaria:** Cuota configurable por usuario (50 mensajes diarios por defecto), con reinicio por fecha.
 * **Frontend Optimizado con Tailwind CSS Compilado:** Hoja de estilos estática minificada sin dependencias de CDN en tiempo de ejecución.
 * **Gestión de Roles Integrada:**
   * **Administrador:** Panel de control, gestión CRUD de cuentas y monitoreo de eventos de APIs de IA.
@@ -40,7 +39,7 @@
 | **Base de Datos** | PostgreSQL 16 + `pgvector` | Base de datos relacional y motor vectorial unificado con índice HNSW. |
 | **Búsqueda Léxica** | PostgreSQL Full-Text Search (FTS) | Búsqueda léxica con diccionario en español (`spanish`). |
 | **Vectorización Local** | `sentence-transformers` | Embeddings multilingües de 768 dimensiones. |
-| **Modelos LLM (Inferencia)** | Groq Cloud & Google Gemini | Inferencia en lenguaje natural orquestada con fallback automático. |
+| **Modelos LLM (Inferencia)** | Groq (`openai/gpt-oss-120b`) y Google Gemini (`gemini-3.8-flash`) | Groq como proveedor principal y Gemini como fallback. |
 | **Frontend** | Django Templates + Tailwind CSS | Interfaz responsive con estilos estáticos compilados y peticiones AJAX. |
 | **Contenerización** | Docker & Docker Compose | Aislamiento y despliegue unificado de servicios (`web` y `db`). |
 
@@ -74,7 +73,7 @@
 │   │   ├── decorators.py           # @roles_requeridos para control de acceso RBAC
 │   │   ├── middleware.py           # AutenticacionRequeridaMiddleware (Zero-Trust)
 │   │   ├── models.py               # Usuario, LeyFederal, FragmentoNormativo, Conversacion, Mensaje, RegistroFalloAPI
-│   │   ├── tests.py                # Suite de 19 pruebas automatizadas
+│   │   ├── tests.py                # Suite de 24 casos de prueba
 │   │   ├── urls.py
 │   │   └── __init__.py
 │   └── __init__.py
@@ -134,14 +133,15 @@ Edita `.env` con tus credenciales y llaves de acceso a las APIs:
 
 ```env
 # Configuración general de Django
-SECRET_KEY=tu_secret_key_de_django
+SECRET_KEY=tu_clave_secreta
 DEBUG=True
-ALLOWED_HOSTS=localhost,127.0.0.1,web
+ALLOWED_HOSTS=localhost,127.0.0.1,0.0.0.0
+CSRF_TRUSTED_ORIGINS=http://127.0.0.1:8000,http://0.0.0.0:8000
 
 # Base de Datos PostgreSQL con pgvector
-POSTGRES_DB=normativa_db
-POSTGRES_USER=normativa_user
-POSTGRES_PASSWORD=normativa_password
+POSTGRES_DB=leyes_db
+POSTGRES_USER=postgres
+POSTGRES_PASSWORD=postgres_pass_dev
 POSTGRES_HOST=db
 POSTGRES_PORT=5432
 
@@ -178,7 +178,7 @@ Abre tu navegador e ingresa a: **[http://localhost:8000](http://localhost:8000)*
 
 ## Ejecución de Pruebas Automatizadas
 
-El proyecto cuenta con una suite integral de **19 pruebas automatizadas** que validan el ciclo completo (cuotas, middleware, aislamiento de roles, procesamiento y deduplicación de PDF, conmutación de LLMs y búsqueda híbrida):
+El proyecto incluye **24 casos de prueba** para cuotas, middleware, permisos por rol, procesamiento y deduplicación de PDF, fallback de proveedores y búsqueda híbrida:
 
 ```bash
 docker-compose exec web python manage.py test apps.core
@@ -187,8 +187,6 @@ docker-compose exec web python manage.py test apps.core
 ---
 
 ## Compilación de Estilos (Frontend)
-
-Los estilos compartidos de responsividad se mantienen en `static/src/input.css`; después de modificarlos, recompila `static/css/dist.css` con `npm run build-css`.
 
 Si realizas cambios en las plantillas HTML o formularios y deseas recompilar la hoja de estilos de Tailwind CSS:
 
@@ -225,7 +223,7 @@ flowchart TD
 ```
 
 1. **Autenticación:** Inicio de sesión con correo y contraseña. Los nuevos usuarios pueden registrarse mediante el formulario público con rol de *Usuario Registrado*.
-2. **Carga e Ingesta (Gestor):** Selecciona o arrastra un PDF de Ley Federal vigente. Se extrae todo el texto legible, se divide en fragmentos acotados con solapamiento y se indexa en `pgvector`. La deduplicación por hash del texto evita volver a procesar contenido sin cambios aunque cambien los metadatos del PDF. El archivo físico se descarta al finalizar.
+2. **Carga e Ingesta (Gestor):** Selecciona o arrastra un PDF de Ley Federal vigente. Se extrae el texto legible, se divide en fragmentos acotados con solapamiento y se indexa en `pgvector`. La deduplicación por hash del texto evita volver a procesar contenido sin cambios aunque cambien los metadatos del PDF. La aplicación no guarda el PDF como registro permanente.
 3. **Chat Jurídico (Usuario Registrado):** Realiza preguntas normativas en lenguaje natural. El motor híbrido localiza los artículos aplicables y el LLM responde citando la ley y su última fecha de reforma registrada.
 4. **Supervisión y Telemetría (Administrador):** Monitoreo en tiempo real de usuarios, estado de cuentas y registros de conmutación de APIs.
 
@@ -233,7 +231,7 @@ flowchart TD
 
 ## Políticas de Seguridad y Privacidad
 
-* **Cero Persistencia de PDFs:** Principio estricto de minimización de datos; ningún archivo binario se almacena en el disco del servidor ni en la base de datos.
+* **Retención de documentos:** La aplicación guarda los metadatos y fragmentos indexados, pero no conserva el PDF como registro permanente. Django puede usar almacenamiento temporal durante la recepción de una carga.
 * **Cifrado de Credenciales:** Contraseñas hasheadas con el algoritmo estándar PBKDF2/SHA256 de Django.
 * **Guardrails Normativos:** Reglas de filtro en los prompts del sistema para rechazar automáticamente cualquier consulta ajena al marco normativo federal mexicano.
 * **Tolerancia a Fallos:** Conmutación por fallback transparente ante saturación o agotamiento de cuotas de las APIs de IA.

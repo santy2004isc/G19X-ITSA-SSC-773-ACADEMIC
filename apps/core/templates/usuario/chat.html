@@ -3,7 +3,7 @@
 {% block title %}Asistente Jurídico - ACCN{% endblock %}
 
 {% block content %}
-<div class="h-screen flex bg-slate-100 overflow-hidden">
+<div class="chat-layout h-screen flex bg-slate-100 overflow-hidden">
     
     <!-- Sidebar -->
     <aside id="sidebar" class="w-72 bg-slate-900 text-slate-300 flex flex-col border-r border-slate-800 flex-shrink-0 transition-all duration-300 ease-in-out">
@@ -156,10 +156,12 @@
     // Control para Ocultar / Mostrar Sidebar
     const toggleSidebarBtn = document.getElementById('toggleSidebar');
     const sidebar = document.getElementById('sidebar');
+    if (window.matchMedia('(max-width: 767px)').matches) sidebar.classList.add('sidebar-hidden');
 
     if (toggleSidebarBtn && sidebar) {
         toggleSidebarBtn.addEventListener('click', () => {
             sidebar.classList.toggle('-ml-72');
+            sidebar.classList.toggle('sidebar-hidden');
         });
     }
 

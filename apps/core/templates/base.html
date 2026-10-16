@@ -5,10 +5,19 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}ACCN - Consulta Normativa{% endblock %}</title>
+    <script>
+        (function () {
+            try {
+                const tema = localStorage.getItem('accn-theme');
+                document.documentElement.dataset.theme = tema === 'dark' ? 'dark' : 'light';
+            } catch (_) { document.documentElement.dataset.theme = 'light'; }
+        })();
+    </script>
     <!-- Hoja de Estilos Tailwind CSS Compilada Estáticamente para Producción -->
     <link rel="stylesheet" href="{% static 'css/dist.css' %}">
 </head>
-<body class="bg-slate-50 min-h-screen text-slate-800 flex flex-col font-sans">
+<body data-page="{{ request.resolver_match.url_name|default:'' }}" class="bg-slate-50 min-h-screen text-slate-800 flex flex-col font-sans">
+    <button id="themeToggle" type="button" class="theme-toggle" aria-label="Cambiar a tema oscuro" aria-pressed="false" title="Cambiar tema">Tema oscuro</button>
     
     <!-- Contenedor de Mensajes/Notificaciones -->
     {% if messages %}
@@ -40,6 +49,23 @@
 
     <!-- Script Global para Mostrar/Ocultar Contraseñas -->
     <script>
+        (function () {
+            const botonTema = document.getElementById('themeToggle');
+            const actualizarTema = function (tema) {
+                const oscuro = tema === 'dark';
+                document.documentElement.dataset.theme = oscuro ? 'dark' : 'light';
+                botonTema.textContent = oscuro ? 'Tema claro' : 'Tema oscuro';
+                botonTema.setAttribute('aria-label', oscuro ? 'Cambiar a tema claro' : 'Cambiar a tema oscuro');
+                botonTema.setAttribute('aria-pressed', String(oscuro));
+            };
+            actualizarTema(document.documentElement.dataset.theme);
+            botonTema.addEventListener('click', function () {
+                const tema = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark';
+                actualizarTema(tema);
+                try { localStorage.setItem('accn-theme', tema); } catch (_) { /* El tema sigue activo durante esta visita. */ }
+            });
+        })();
+
         function togglePasswordVisibility(inputId, btn) {
             const input = document.getElementById(inputId);
             const iconEye = btn.querySelector('.icon-eye');
