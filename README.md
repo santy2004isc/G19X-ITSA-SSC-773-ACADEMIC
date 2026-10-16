@@ -1,35 +1,45 @@
-# Agente Conversacional Inteligente para Consulta Normativa
+# Agente Conversacional Inteligente para Consulta Normativa (ACCN)
 
 > **Plataforma web monolítica basada en arquitectura RAG (Retrieval-Augmented Generation) para la localización, extracción y consulta semántica automatizada de las Leyes Federales Públicas de México.**
+
+[![Python](https://img.shields.io/badge/Python-3.11+-blue.svg)](https://www.python.org/)
+[![Django](https://img.shields.io/badge/Django-5.x-green.svg)](https://www.djangoproject.com/)
+[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16%20%2B%20pgvector-blue.svg)](https://github.com/pgvector/pgvector)
+[![TailwindCSS](https://img.shields.io/badge/Tailwind-CSS%20Standalone-38bdf8.svg)](https://tailwindcss.com/)
+[![Tests](https://img.shields.io/badge/Tests-15%2F15%20Passing-success.svg)]()
+[![Docker](https://img.shields.io/badge/Docker-Ready-2496ed.svg)](https://www.docker.com/)
 
 ---
 
 ## Características Principales
 
-* **Acceso Estrictamente Autenticado:** Protección total de rutas mediante middleware. No se permite interacción a usuarios invitados o anónimos.
-* **Procesamiento de PDF en Memoria:** Ingesta e indexación de leyes sin almacenar archivos PDF de forma persistente en el servidor o base de datos.
-* **Embeddings Locales:** Generación de vectores ejecutada localmente en el backend utilizando `sentence-transformers`, reduciendo la dependencia de APIs externas para la indexación.
-* **Búsqueda Vectorial:** Almacenamiento y consulta de similitud vectorial optimizada en PostgreSQL mediante la extensión `pgvector`.
-* **Resiliencia y Conmutación Automática (Fallback) de LLMs:**
-  * Envío prioritario a **Groq Cloud API** para máxima velocidad.
-  * Conmutación transparente hacia **Gemini API** ante eventos de Rate Limit (HTTP 429), Timeout o caída del servicio.
-  * Notificación amigable al usuario en caso de saturación simultánea de ambos proveedores gratuitos.
+* **Acceso Estrictamente Autenticado:** Protección global de todas las rutas mediante el middleware perimetral `AutenticacionRequeridaMiddleware`. Bloqueo absoluto a usuarios anónimos o no autorizados.
+* **Procesamiento de PDF en Memoria (Zero Persistent Storage):** Ingesta e indexación de leyes sin almacenar archivos PDF de forma física en el disco del servidor ni en la base de datos (procesamiento en streams `io.BytesIO`).
+* **Chunking Semántico y Estructurado:** Segmentación de textos legales respetando párrafos, oraciones y artículos normativos con solapamiento (*overlap*) dinámico, evitando cortes arbitrarios de palabras o conceptos.
+* **Embeddings Locales:** Generación de representaciones vectoriales densas de 768 dimensiones ejecutada en el backend local utilizando `sentence-transformers` (`paraphrase-multilingual-mpnet-base-v2`), eliminando costos y cuotas externas para la indexación.
+* **Índices Vectoriales HNSW en `pgvector`:** Aceleración de la similitud coseno mediante el índice de grafos jerárquicos navegables `HnswIndex` (`vector_cosine_ops`), garantizando búsquedas sublineales en tiempo real.
+* **Búsqueda Híbrida con Reciprocal Rank Fusion (RRF):** Fusión sinérgica entre la búsqueda semántica vectorial y el motor de *Full-Text Search* en español de PostgreSQL (`SearchVector` / `SearchQuery`), garantizando máxima precisión ante citas numéricas de artículos (ej. *"Artículo 123"*), siglas (*"LFT"*, *"CPEUM"*) o términos literales.
+* **Control de Cuota Diaria Anti-Abuso:** Asignación de cuota diaria configurable (50 mensajes/día por defecto) con reinicio atómico por fecha calendario (`date`).
+* **Frontend Optimizado con Tailwind CSS Compilado:** Hoja de estilos estática minificada sin dependencias de CDN en tiempo de ejecución.
 * **Gestión de Roles Integrada:**
-  * **Administrador:** Control de usuarios y monitoreo de APIs.
-  * **Gestor de Base de Conocimiento:** Ingesta temporal de documentos PDF.
-  * **Usuario Registrado:** Consultas en chat con historial persistente.
+  * **Administrador:** Panel de control, gestión CRUD de cuentas y monitoreo de eventos de APIs de IA.
+  * **Gestor de Base de Conocimiento:** Carga, actualización y deduplicación de leyes federales en PDF e interfaz de prueba de chat sin restricciones de cuota.
+  * **Usuario Registrado:** Consultas en lenguaje natural fundamentadas con citas explícitas e historial conversacional persistente.
 
 ---
 
 ## Stack Tecnológico
 
-* **Lenguaje:** Python 3.11+
-* **Framework Web:** Django (Patrón MVT)
-* **Base de Datos:** PostgreSQL con extensión `pgvector`
-* **Vectorización Local:** `sentence-transformers`
-* **Modelos de Lenguaje (Inferencia):** Groq Cloud API & Gemini API (Orquestados automáticamente por el sistema)
-* **Frontend:** Django Templates + Tailwind CSS
-* **Contenerización:** Docker & Docker Compose
+| Componente | Tecnología | Propósito |
+| :--- | :--- | :--- |
+| **Lenguaje** | Python 3.11+ | Entorno de ejecución backend. |
+| **Framework Web** | Django 5.x | Patrón MVT, ORM, sesiones, seguridad y middleware. |
+| **Base de Datos** | PostgreSQL 16 + `pgvector` | Base de datos relacional y motor vectorial unificado con índice HNSW. |
+| **Búsqueda Léxica** | PostgreSQL Full-Text Search (FTS) | Búsqueda léxica con diccionario en español (`spanish`). |
+| **Vectorización Local** | `sentence-transformers` | Embeddings multilingües de 768 dimensiones. |
+| **Modelos LLM (Inferencia)** | Groq Cloud & Google Gemini | Inferencia en lenguaje natural orquestada con fallback automático. |
+| **Frontend** | Django Templates + Tailwind CSS | Interfaz responsive con estilos estáticos compilados y peticiones AJAX. |
+| **Contenerización** | Docker & Docker Compose | Aislamiento y despliegue unificado de servicios (`web` y `db`). |
 
 ---
 
@@ -39,80 +49,100 @@
 .
 ├── apps/
 │   ├── core/
-│   │   ├── forms/
-│   │   ├── migrations/
+│   │   ├── forms/                  # Formularios validados (auth, admin, gestor, perfil)
+│   │   ├── migrations/             # Migraciones de base de datos relacional y vectorial
 │   │   ├── services/
-│   │   ├── templates/
-│   │   ├── views/
-│   │   ├── __init__.py
+│   │   │   ├── chat_service.py     # Motor RAG híbrido (HNSW + FTS + RRF) y orquestador Fallback
+│   │   │   ├── pdf_processor.py    # Ingesta en memoria, chunking estructural y embeddings
+│   │   │   └── __init__.py
+│   │   ├── templates/              # Plantillas HTML por rol (admin, gestor, usuario, auth)
+│   │   │   ├── admin/
+│   │   │   ├── auth/
+│   │   │   ├── gestor/
+│   │   │   ├── usuario/
+│   │   │   └── base.html
+│   │   ├── views/                  # Controladores agrupados por rol
+│   │   │   ├── admin/
+│   │   │   ├── auth/
+│   │   │   ├── gestor/
+│   │   │   └── usuario/
 │   │   ├── admin.py
 │   │   ├── apps.py
-│   │   ├── decorators.py
-|   |   ├──  middleware.py  
-│   │   ├── models.py
-│   │   ├── tests.py
-│   │   └── urls.py
+│   │   ├── decorators.py           # @roles_requeridos para control de acceso RBAC
+│   │   ├── middleware.py           # AutenticacionRequeridaMiddleware (Zero-Trust)
+│   │   ├── models.py               # Usuario, LeyFederal, FragmentoNormativo, Conversacion, Mensaje, RegistroFalloAPI
+│   │   ├── tests.py                # Suite de 15 pruebas automatizadas
+│   │   ├── urls.py
+│   │   └── __init__.py
 │   └── __init__.py
-├── config/                  # Configuración principal de Django (settings, urls, wsgi)
-│   ├── __init__.py
+├── config/                         # Configuración central del proyecto Django
 │   ├── asgi.py
-│   ├── settings.py
+│   ├── settings.py                 # Configuración de BD, apps, middleware y static files
 │   ├── urls.py
-│   └── wsgi.py
-├── .env.example             # Plantilla de variables de entorno
+│   ├── wsgi.py
+│   └── __init__.py
+├── static/                         # Archivos estáticos y distribución CSS
+│   ├── css/
+│   │   └── dist.css                # Hoja de estilos Tailwind CSS minificada
+│   └── src/
+│       └── input.css               # Directivas de entrada de Tailwind CSS
+├── .env.example                    # Plantilla de variables de entorno
 ├── .gitignore
-├── docker-compose.yml       # Orquestación de servicios (Web + PostgreSQL/pgvector)
-├── Dockerfile               # Imagen para el entorno backend Django
+├── docker-compose.yml              # Orquestación Docker (servicios web y db)
+├── Dockerfile                      # Imagen para Django con dependencias del sistema
 ├── manage.py
-├── README.md                # Documentación del repositorio
-└── requirements.txt         # Dependencias de Python
+├── package.json                    # Scripts de compilación de frontend (Tailwind CLI)
+├── tailwind.config.js              # Configuración de escaneo de clases Tailwind
+├── README.md                       # Documentación del repositorio
+└── requirements.txt                # Dependencias fijadas de Python
 ```
 
 ---
 
 ## Requisitos Previos
 
-Asegúrate de tener instalados en tu sistema:
+Asegúrate de contar con los siguientes elementos instalados en tu equipo:
 
 * **Docker Engine** (v20.10 o superior)
 * **Docker Compose** (v2.0 o superior)
 * **Git**
+* *(Opcional para desarrollo frontend)* **Node.js** (v18+)
 
 ---
 
 ## Instalación y Configuración
 
-### 1. Clona el repositorio
+### 1. Clonar el repositorio
 
 ```bash
 git clone https://github.com/santy2004isc/G19X-ITSA-SSC-773-ACADEMIC.git
 cd G19X-ITSA-SSC-773-ACADEMIC
 ```
 
-### 2. Configura las variables de entorno
+### 2. Configurar variables de entorno
 
-Copia el archivo de ejemplo `.env.example` a `.env`:
+Copia el archivo de plantilla `.env.example` a `.env`:
 
 ```bash
 cp .env.example .env
 ```
 
-Edita `.env` agregando tus credenciales y llaves de API:
+Edita `.env` con tus credenciales y llaves de acceso a las APIs:
 
 ```env
-# Configuración de Django
+# Configuración general de Django
 SECRET_KEY=tu_secret_key_de_django
 DEBUG=True
-ALLOWED_HOSTS=localhost,127.0.0.1
+ALLOWED_HOSTS=localhost,127.0.0.1,web
 
-# Base de Datos PostgreSQL + pgvector
+# Base de Datos PostgreSQL con pgvector
 POSTGRES_DB=normativa_db
 POSTGRES_USER=normativa_user
 POSTGRES_PASSWORD=normativa_password
 POSTGRES_HOST=db
 POSTGRES_PORT=5432
 
-# LLM APIs
+# Proveedores de Modelos de Lenguaje (LLMs)
 GROQ_API_KEY=tu_groq_api_key
 GEMINI_API_KEY=tu_gemini_api_key
 ```
@@ -121,7 +151,7 @@ GEMINI_API_KEY=tu_gemini_api_key
 
 ## Despliegue con Docker
 
-### 1. Construir y levantar los contenedores
+### 1. Construir e iniciar los contenedores
 
 ```bash
 docker-compose up --build -d
@@ -130,37 +160,81 @@ docker-compose up --build -d
 ### 2. Aplicar migraciones y crear superusuario
 
 ```bash
-# Aplicar migraciones de la base de datos
+# Aplicar migraciones relacionales, pgvector e índice HNSW
 docker-compose exec web python manage.py migrate
 
-# Crear el usuario Administrador inicial
+# Crear la cuenta del Administrador inicial
 docker-compose exec web python manage.py createsuperuser
 ```
 
-### 3. Acceder a la aplicación
+### 3. Acceder al sistema
 
-Abre tu navegador e ingresa a: [http://localhost:8000](http://localhost:8000)
+Abre tu navegador e ingresa a: **[http://localhost:8000](http://localhost:8000)**
 
 ---
 
-## Uso del Sistema
+## Ejecución de Pruebas Automatizadas
 
-* **Autenticación:** Inicia sesión con tus credenciales o regístrate mediante el formulario público.
-* **Carga de Documentos (Gestor):** Ingresa con rol de Gestor de Base de Conocimiento para subir archivos PDF de Leyes Federales. El archivo se procesará en memoria y se convertirá en vectores almacenados en `pgvector`.
-* **Consulta en Chat (Usuario Registrado):** Realiza preguntas normativas en lenguaje natural (ej. *¿Qué establece el artículo 123 sobre el trabajo digno?*). El sistema devolverá la respuesta fundamentada con citas explícitas de la ley.
+El proyecto cuenta con una suite integral de **15 pruebas automatizadas** que validan el ciclo completo (cuotas, middleware, aislamiento de roles, procesamiento de PDF en memoria, conmutación de LLMs y búsqueda híbrida):
+
+```bash
+docker-compose exec web python manage.py test apps.core
+```
+
+---
+
+## Compilación de Estilos (Frontend)
+
+Si realizas cambios en las plantillas HTML o formularios y deseas recompilar la hoja de estilos de Tailwind CSS:
+
+```bash
+# Compilar hoja de estilos minificada para producción
+npm run build-css
+
+# Modo observador durante desarrollo
+npm run watch-css
+
+# Recolectar estáticos en Django
+docker-compose exec web python manage.py collectstatic --noinput
+```
+
+---
+
+## Flujo Operativo del Sistema
+
+```mermaid
+flowchart TD
+    subgraph Ingesta["Fase de Ingesta (Rol Gestor)"]
+        PDF["Subida de Ley Federal en PDF"] --> Mem["Extracción en memoria volátil (pypdf)"]
+        Mem --> Chunks["Chunking estructural de leyes"]
+        Chunks --> Embed["Embeddings locales (sentence-transformers)"]
+        Embed --> PGV[("PostgreSQL + pgvector (Índice HNSW)")]
+    end
+
+    subgraph Consulta["Fase de Consulta (Rol Usuario)"]
+        Query["Pregunta en lenguaje natural"] --> HybridSearch["Búsqueda Híbrida: Vectorial + Léxica (RRF)"]
+        HybridSearch --> Context["Recuperación de fragmentos vigentes"]
+        Context --> LLM["Orquestador: Groq (timeout <=5s) -> Fallback Gemini"]
+        LLM --> Response["Respuesta fundamentada con citas de ley"]
+    end
+```
+
+1. **Autenticación:** Inicio de sesión con correo y contraseña. Los nuevos usuarios pueden registrarse mediante el formulario público con rol de *Usuario Registrado*.
+2. **Carga e Ingesta (Gestor):** Carga temporal de archivos PDF de Leyes Federales vigentes. Se extrae el texto, se generan fragmentos semánticos y se indexan en `pgvector`. El archivo físico se descarta al finalizar.
+3. **Chat Jurídico (Usuario Registrado):** Realiza preguntas normativas en lenguaje natural. El motor híbrido localiza los artículos aplicables y el LLM responde citando la ley y su última fecha de reforma registrada.
+4. **Supervisión y Telemetría (Administrador):** Monitoreo en tiempo real de usuarios, estado de cuentas y registros de conmutación de APIs.
 
 ---
 
 ## Políticas de Seguridad y Privacidad
 
-* **Cero Almacenamiento Persistente de PDF:** Los archivos subidos se leen únicamente en memoria volátil durante la fase de procesamiento y se descartan tras generar los vectores.
-* **Protección de Datos:** Las contraseñas están cifradas con el sistema de hashing nativo de Django.
-* **Control de Contexto:** Las consultas fuera del marco normativo federal mexicano son rechazadas automáticamente mediante guardrails en los prompts.
+* **Cero Persistencia de PDFs:** Principio estricto de minimización de datos; ningún archivo binario se almacena en el disco del servidor ni en la base de datos.
+* **Cifrado de Credenciales:** Contraseñas hasheadas con el algoritmo estándar PBKDF2/SHA256 de Django.
+* **Guardrails Normativos:** Reglas de filtro en los prompts del sistema para rechazar automáticamente cualquier consulta ajena al marco normativo federal mexicano.
+* **Tolerancia a Fallos:** Conmutación por fallback transparente ante saturación o agotamiento de cuotas de las APIs de IA.
 
 ---
 
-## Créditos y Licencia
+## Licencia
 
-Por definir.
-
-*Todos los derechos reservados.*
+Desarrollado con fines académicos y de investigación. *Todos los derechos reservados.*
