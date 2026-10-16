@@ -12,9 +12,9 @@
     
     <!-- Contenedor de Mensajes/Notificaciones -->
     {% if messages %}
-    <div id="messages-container" class="max-w-md mx-auto mt-4 w-full px-4 transition-opacity duration-500">
+    <div id="messages-container" class="max-w-2xl mx-auto mt-4 w-full px-4 transition-opacity duration-500" aria-live="polite" aria-atomic="false">
         {% for message in messages %}
-        <div class="p-4 mb-2 text-sm rounded-lg border shadow-sm {% if message.tags == 'error' %}bg-red-50 text-red-700 border-red-200{% else %}bg-blue-50 text-blue-700 border-blue-200{% endif %}">
+        <div role="alert" class="p-4 mb-2 text-sm rounded-lg border shadow-sm break-words {% if 'error' in message.tags %}bg-red-50 text-red-800 border-red-300{% elif 'success' in message.tags %}bg-emerald-50 text-emerald-800 border-emerald-300{% elif 'warning' in message.tags %}bg-amber-50 text-amber-900 border-amber-300{% else %}bg-blue-50 text-blue-800 border-blue-300{% endif %}">
             {{ message }}
         </div>
         {% endfor %}

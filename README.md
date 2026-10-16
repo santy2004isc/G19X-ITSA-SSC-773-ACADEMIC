@@ -22,6 +22,7 @@
 * **Índices Vectoriales HNSW en `pgvector`:** Aceleración de la similitud coseno mediante el índice de grafos jerárquicos navegables `HnswIndex` (`vector_cosine_ops`), garantizando búsquedas sublineales en tiempo real.
 * **Búsqueda Híbrida con Reciprocal Rank Fusion (RRF):** Fusión sinérgica entre la búsqueda semántica vectorial y el motor de *Full-Text Search* en español de PostgreSQL (`SearchVector` / `SearchQuery`), garantizando máxima precisión ante citas numéricas de artículos (ej. *"Artículo 123"*), siglas (*"LFT"*, *"CPEUM"*) o términos literales.
 * **Control de Cuota Diaria Anti-Abuso:** Asignación de cuota diaria configurable (50 mensajes/día por defecto) con reinicio atómico por fecha calendario (`date`).
+* **Interfaz adaptable:** Plantillas optimizadas para móviles, tabletas y escritorio; las tablas conservan sus columnas con desplazamiento horizontal y los nombres largos de leyes se ajustan en varias líneas.
 * **Frontend Optimizado con Tailwind CSS Compilado:** Hoja de estilos estática minificada sin dependencias de CDN en tiempo de ejecución.
 * **Gestión de Roles Integrada:**
   * **Administrador:** Panel de control, gestión CRUD de cuentas y monitoreo de eventos de APIs de IA.
@@ -187,6 +188,8 @@ docker-compose exec web python manage.py test apps.core
 
 ## Compilación de Estilos (Frontend)
 
+Los estilos compartidos de responsividad se mantienen en `static/src/input.css`; después de modificarlos, recompila `static/css/dist.css` con `npm run build-css`.
+
 Si realizas cambios en las plantillas HTML o formularios y deseas recompilar la hoja de estilos de Tailwind CSS:
 
 ```bash
@@ -210,7 +213,7 @@ flowchart TD
         PDF["Subida de Ley Federal en PDF"] --> Mem["Extracción en memoria volátil (pypdf)"]
         Mem --> Chunks["Chunking estructural de leyes"]
         Chunks --> Embed["Embeddings locales (sentence-transformers)"]
-        Embed --> PGV[("PostgreSQL + pgvector (Índice HNSW)")]
+        Embed --> PGV[("PostgreSQL + pgvector")]
     end
 
     subgraph Consulta["Fase de Consulta (Rol Usuario)"]

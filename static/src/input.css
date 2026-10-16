@@ -1,3 +1,36 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* Ajustes compartidos para pantallas pequeñas y contenido extenso. */
+@layer base {
+  html { min-width: 320px; }
+  body { overflow-x: hidden; }
+  img, svg, video, canvas { max-width: 100%; }
+  input, select, textarea { max-width: 100%; }
+  input[type="text"], input[type="email"], input[type="password"],
+  input[type="number"], input[type="date"], select, textarea {
+    min-width: 0;
+  }
+  :focus-visible { outline: 3px solid rgba(37, 99, 235, .45); outline-offset: 2px; }
+}
+
+@layer components {
+  /* Permite consultar todas las columnas con desplazamiento táctil. */
+  table { min-width: 40rem; }
+  .table-scroll { overflow-x: auto; overflow-y: hidden; -webkit-overflow-scrolling: touch; }
+  table th, table td { overflow-wrap: anywhere; }
+  .form-control, form input:not([type="checkbox"]):not([type="radio"]),
+  form select, form textarea { width: 100%; }
+}
+
+@media (max-width: 640px) {
+  table { min-width: 36rem; }
+  header { flex-wrap: wrap; gap: .75rem; }
+  header > div { flex-wrap: wrap; gap: .65rem 1rem; }
+  main { padding: 1rem !important; }
+  form .grid.grid-cols-2 { grid-template-columns: minmax(0, 1fr); }
+  form .justify-end { flex-wrap: wrap; }
+  form button, form a[id^="btn"] { min-height: 2.75rem; }
+  .max-w-xl, .max-w-lg { padding: 1.25rem !important; }
+}
