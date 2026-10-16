@@ -16,7 +16,11 @@ class CargarDocumentoForm(forms.ModelForm):
     """
     archivo_pdf = forms.FileField(
         label="Archivo Ley Federal (PDF)",
-        widget=forms.FileInput(attrs={'class': INPUT_STYLE, 'accept': '.pdf'}),
+        widget=forms.FileInput(attrs={
+            'class': 'absolute inset-0 h-full w-full cursor-pointer opacity-0',
+            'accept': '.pdf',
+            'id': 'input_archivo_pdf',
+        }),
         help_text="Seleccione un archivo en formato .pdf legible."
     )
     fecha_publicacion = forms.DateField(
@@ -41,7 +45,7 @@ class CargarDocumentoForm(forms.ModelForm):
     def clean_archivo_pdf(self):
         archivo = self.cleaned_data.get('archivo_pdf')
         if archivo:
-            if not archivo.name.endswith('.pdf'):
+            if not archivo.name.lower().endswith('.pdf'):
                 raise ValidationError("El archivo seleccionado debe ser obligatoriamente en formato .pdf")
             if archivo.size > 50 * 1024 * 1024:
                 raise ValidationError("El tamaño del archivo PDF no puede exceder los 50MB.")
@@ -55,7 +59,11 @@ class EditarLeyFederalForm(forms.ModelForm):
     archivo_pdf = forms.FileField(
         label="Nuevo Archivo PDF (Opcional)",
         required=False,
-        widget=forms.FileInput(attrs={'class': INPUT_STYLE, 'accept': '.pdf', 'id': 'input_archivo_pdf'}),
+        widget=forms.FileInput(attrs={
+            'class': 'absolute inset-0 h-full w-full cursor-pointer opacity-0',
+            'accept': '.pdf',
+            'id': 'input_archivo_pdf',
+        }),
         help_text="Cargue un nuevo PDF únicamente si desea actualizar y re-vectorizar el contenido normativo."
     )
     # format='%Y-%m-%d' corrige el problema de visualización en <input type="date">
@@ -77,7 +85,7 @@ class EditarLeyFederalForm(forms.ModelForm):
     def clean_archivo_pdf(self):
         archivo = self.cleaned_data.get('archivo_pdf')
         if archivo:
-            if not archivo.name.endswith('.pdf'):
+            if not archivo.name.lower().endswith('.pdf'):
                 raise ValidationError("El archivo seleccionado debe ser obligatoriamente en formato .pdf")
             if archivo.size > 50 * 1024 * 1024:
                 raise ValidationError("El tamaño del archivo PDF no puede exceder los 50MB.")

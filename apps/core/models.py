@@ -151,6 +151,13 @@ class LeyFederal(models.Model):
         unique=True, 
         verbose_name='Hash SHA-256 del documento'
     )
+    hash_contenido = models.CharField(
+        max_length=64,
+        unique=True,
+        null=True,
+        blank=True,
+        verbose_name='Hash SHA-256 del texto extraído'
+    )
     estado = models.CharField(
         max_length=20, 
         choices=Estado.choices, 

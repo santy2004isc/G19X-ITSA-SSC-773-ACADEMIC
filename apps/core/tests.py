@@ -5,10 +5,15 @@ from django.test import TestCase, Client
 from django.urls import reverse
 from django.utils import timezone
 from django.core.exceptions import ValidationError
+from django.core.files.uploadedfile import SimpleUploadedFile
 from pypdf import PdfWriter
 
 from .models import Usuario, LeyFederal, FragmentoNormativo, Conversacion, Mensaje, RegistroFalloAPI
-from .services.pdf_processor import procesar_pdf_en_memoria, calcular_hash_fragmento
+from .services.pdf_processor import (
+    _fragmentar_texto_estructurado,
+    procesar_pdf_en_memoria,
+    calcular_hash_fragmento,
+)
 from .services.chat_service import (
     generar_respuesta_ia_con_fallback,
     MENSAJE_SATURACION_APIS,
@@ -125,6 +130,67 @@ class ControlDeRolesTest(TestCase):
         response = self.client.get(reverse('gestor_dashboard'))
         self.assertEqual(response.status_code, 200)
 
+    @patch('apps.core.views.gestor.gestor_views.generar_vector_embedding')
+    @patch('apps.core.views.gestor.gestor_views.procesar_pdf_en_memoria')
+    def test_carga_no_vuelve_a_indexar_contenido_ya_registrado(self, mock_procesar, mock_embedding):
+        self.client.force_login(self.usuario_gestor)
+        LeyFederal.objects.create(
+            nombre='Ley ya cargada',
+            fecha_publicacion=timezone.now().date(),
+            hash_documento='a' * 64,
+            hash_contenido='b' * 64,
+        )
+        mock_procesar.return_value = ('c' * 64, 'b' * 64, ['Texto ya indexado'])
+
+        response = self.client.post(
+            reverse('gestor_cargar_documento'),
+            {
+                'nombre': 'Copia de la ley',
+                'siglas': 'CDL',
+                'fecha_publicacion': '2020-01-01',
+                'fecha_ultima_reforma': '',
+                'estado': LeyFederal.Estado.VIGENTE,
+                'archivo_pdf': SimpleUploadedFile('ley.pdf', b'contenido pdf', content_type='application/pdf'),
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(LeyFederal.objects.count(), 1)
+        mock_embedding.assert_not_called()
+
+    @patch('apps.core.views.gestor.gestor_views.generar_vector_embedding')
+    @patch('apps.core.views.gestor.gestor_views.procesar_pdf_en_memoria')
+    def test_edicion_con_mismo_contenido_conserva_fragmentos(self, mock_procesar, mock_embedding):
+        self.client.force_login(self.usuario_gestor)
+        ley = LeyFederal.objects.create(
+            nombre='Ley existente',
+            fecha_publicacion=timezone.now().date(),
+            hash_documento='a' * 64,
+            hash_contenido='b' * 64,
+        )
+        FragmentoNormativo.objects.create(
+            ley=ley,
+            contenido_fragmento='Artículo 1. Texto vigente.',
+            vector_embedding=[0.0] * 768,
+            hash_fragmento='c' * 64,
+        )
+        mock_procesar.return_value = ('d' * 64, 'b' * 64, ['Artículo 1. Texto vigente.'])
+
+        response = self.client.post(
+            reverse('gestor_editar_ley', args=[ley.id]),
+            {
+                'nombre': ley.nombre,
+                'siglas': '',
+                'fecha_ultima_reforma': '2025-01-01',
+                'estado': LeyFederal.Estado.VIGENTE,
+                'archivo_pdf': SimpleUploadedFile('ley.pdf', b'contenido pdf', content_type='application/pdf'),
+            },
+        )
+
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(ley.fragmentos.count(), 1)
+        mock_embedding.assert_not_called()
+
 
 class PDFProcessorTest(TestCase):
     """
@@ -148,6 +214,29 @@ class PDFProcessorTest(TestCase):
         archivo_invalido = io.BytesIO(b"No soy un archivo PDF real")
         with self.assertRaises(ValidationError):
             procesar_pdf_en_memoria(archivo_invalido)
+
+    def test_fragmentacion_cubre_texto_largo_y_respeta_limite(self):
+        texto = " ".join(f"palabra{i}" for i in range(300))
+
+        chunks = _fragmentar_texto_estructurado(texto, chunk_size=120, overlap=20)
+        palabras_extraidas = iter(" ".join(chunks).split())
+
+        self.assertTrue(all(len(chunk) <= 120 for chunk in chunks))
+        for palabra in texto.split():
+            self.assertIn(palabra, palabras_extraidas)
+
+    @patch('apps.core.services.pdf_processor.pypdf.PdfReader')
+    def test_hash_contenido_no_cambia_por_bytes_o_metadatos_del_pdf(self, mock_pdf_reader):
+        mock_page = MagicMock()
+        mock_page.extract_text.return_value = "Artículo 1.\nTexto de la ley."
+        mock_pdf_reader.return_value.pages = [mock_page]
+
+        hash_archivo_a, hash_contenido_a, chunks_a = procesar_pdf_en_memoria(io.BytesIO(b"pdf con metadata A"))
+        hash_archivo_b, hash_contenido_b, chunks_b = procesar_pdf_en_memoria(io.BytesIO(b"pdf con metadata B"))
+
+        self.assertNotEqual(hash_archivo_a, hash_archivo_b)
+        self.assertEqual(hash_contenido_a, hash_contenido_b)
+        self.assertEqual(chunks_a, chunks_b)
 
 
 class ChatServiceFallbackTest(TestCase):

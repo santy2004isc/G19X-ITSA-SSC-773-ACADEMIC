@@ -21,7 +21,7 @@ def gestor_required(view_func):
     """
     @wraps(view_func)
     def _wrapped_view(request, *args, **kwargs):
-        if not request.user.is_authenticated or request.user.rol not in [Usuario.Rol.GESTOR, Usuario.Rol.ADMINISTRADOR]:
+        if not request.user.is_authenticated or request.user.rol not in [Usuario.Rol.GESTOR]:
             messages.error(request, "Acceso restringido. Se requieren permisos de Gestor de la Base de Conocimiento.")
             return redirect('login')
         return view_func(request, *args, **kwargs)
@@ -68,16 +68,19 @@ def cargar_documento_view(request):
             archivo_pdf = request.FILES['archivo_pdf']
             
             try:
-                hash_doc, chunks = procesar_pdf_en_memoria(archivo_pdf)
+                hash_archivo, hash_contenido, chunks = procesar_pdf_en_memoria(archivo_pdf)
 
-                if LeyFederal.objects.filter(hash_documento=hash_doc).exists():
-                    messages.error(request, "Este documento PDF ya ha sido procesado e ingresado previamente al sistema.")
+                if LeyFederal.objects.filter(
+                    Q(hash_documento=hash_archivo) | Q(hash_contenido=hash_contenido)
+                ).exists():
+                    messages.error(request, "El contenido de este documento ya está cargado; no es necesario volver a procesarlo.")
                     return render(request, 'gestor/cargar_documento.html', {'form': form})
 
                 with transaction.atomic():
                     ley = form.save(commit=False)
                     ley.usuario = request.user
-                    ley.hash_documento = hash_doc
+                    ley.hash_documento = hash_archivo
+                    ley.hash_contenido = hash_contenido
                     ley.save()
 
                     fragmentos_objetos = []
@@ -128,33 +131,46 @@ def editar_ley_view(request, ley_id):
                     
                     # Si se adjuntó un nuevo PDF, se reemplazan los fragmentos y vectores
                     if archivo_pdf:
-                        hash_doc, chunks = procesar_pdf_en_memoria(archivo_pdf)
+                        hash_archivo, hash_contenido, chunks = procesar_pdf_en_memoria(archivo_pdf)
 
                         # Validar duplicados exceptuando la ley actual
-                        if LeyFederal.objects.filter(hash_documento=hash_doc).exclude(id=ley.id).exists():
-                            messages.error(request, "El archivo PDF proporcionado ya está cargado en otra ley registrada.")
+                        if LeyFederal.objects.filter(
+                            Q(hash_documento=hash_archivo) | Q(hash_contenido=hash_contenido)
+                        ).exclude(id=ley.id).exists():
+                            messages.error(request, "El contenido del PDF proporcionado ya está cargado en otra ley registrada.")
                             return render(request, 'gestor/editar_ley.html', {'form': form, 'ley': ley})
 
-                        ley_actualizada.hash_documento = hash_doc
+                        mismo_contenido = (
+                            hash_contenido == ley.hash_contenido
+                            or hash_archivo == ley.hash_documento
+                        )
+                        ley_actualizada.hash_documento = hash_archivo
+                        ley_actualizada.hash_contenido = hash_contenido
                         ley_actualizada.save()
 
-                        # Eliminar vectores/fragmentos anteriores e insertar los nuevos
-                        FragmentoNormativo.objects.filter(ley=ley).delete()
-
-                        fragmentos_objetos = []
-                        for chunk in chunks:
-                            hash_frag = calcular_hash_fragmento(chunk)
-                            vector = generar_vector_embedding(chunk)
-                            fragmentos_objetos.append(
-                                FragmentoNormativo(
-                                    ley=ley,
-                                    contenido_fragmento=chunk,
-                                    vector_embedding=vector,
-                                    hash_fragmento=hash_frag
-                                )
+                        if mismo_contenido:
+                            messages.success(
+                                request,
+                                f"Los datos de la ley '{ley.nombre}' fueron actualizados; el contenido no cambió y se conservaron sus fragmentos vectoriales."
                             )
-                        FragmentoNormativo.objects.bulk_create(fragmentos_objetos)
-                        messages.success(request, f"La ley '{ley.nombre}' y sus fragmentos vectoriales ({len(chunks)}) fueron actualizados con éxito.")
+                        else:
+                            # Eliminar vectores/fragmentos anteriores e insertar los nuevos
+                            FragmentoNormativo.objects.filter(ley=ley).delete()
+
+                            fragmentos_objetos = []
+                            for chunk in chunks:
+                                hash_frag = calcular_hash_fragmento(chunk)
+                                vector = generar_vector_embedding(chunk)
+                                fragmentos_objetos.append(
+                                    FragmentoNormativo(
+                                        ley=ley,
+                                        contenido_fragmento=chunk,
+                                        vector_embedding=vector,
+                                        hash_fragmento=hash_frag
+                                    )
+                                )
+                            FragmentoNormativo.objects.bulk_create(fragmentos_objetos)
+                            messages.success(request, f"La ley '{ley.nombre}' y sus fragmentos vectoriales ({len(chunks)}) fueron actualizados con éxito.")
                     else:
                         ley_actualizada.save()
                         messages.success(request, f"Los datos de la ley '{ley.nombre}' fueron actualizados correctamente.")

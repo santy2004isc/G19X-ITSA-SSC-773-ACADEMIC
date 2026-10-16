@@ -77,7 +77,11 @@
             <!-- Campo Opcional para re-vectorizar PDF -->
             <div>
                 <label class="block text-sm font-medium text-slate-700 mb-1">{{ form.archivo_pdf.label }}</label>
-                {{ form.archivo_pdf }}
+                <div id="zonaSoltarPdf" class="relative flex min-h-28 cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed border-slate-300 bg-slate-50 px-4 py-5 text-center transition hover:border-blue-400 hover:bg-blue-50">
+                    {{ form.archivo_pdf }}
+                    <span class="pointer-events-none text-sm font-medium text-slate-700">Arrastra un PDF aquí o haz clic para buscarlo</span>
+                    <span id="nombreArchivoPdf" class="pointer-events-none mt-1 text-xs text-slate-500">Ningún archivo seleccionado</span>
+                </div>
                 <p class="text-xs text-slate-400 mt-1">{{ form.archivo_pdf.help_text }}</p>
                 {% if form.archivo_pdf.errors %}<p class="text-red-500 text-xs mt-1">{{ form.archivo_pdf.errors.0 }}</p>{% endif %}
             </div>
@@ -109,15 +113,38 @@
     const inputPdf = document.getElementById('input_archivo_pdf');
     const inputFechaReforma = document.getElementById('input_fecha_reforma');
     const labelObligatoria = document.getElementById('label_reforma_obligatoria');
+    const zonaSoltarPdf = document.getElementById('zonaSoltarPdf');
+    const nombreArchivoPdf = document.getElementById('nombreArchivoPdf');
 
     // Cambiar dinámicamente el estado de obligatoriedad según si hay archivo cargado
+    function actualizarArchivoSeleccionado(archivo) {
+        nombreArchivoPdf.textContent = archivo ? archivo.name : 'Ningún archivo seleccionado';
+        inputFechaReforma.required = Boolean(archivo);
+        labelObligatoria.classList.toggle('hidden', !archivo);
+    }
+
     inputPdf.addEventListener('change', function() {
-        if (this.files && this.files.length > 0) {
-            inputFechaReforma.required = true;
-            labelObligatoria.classList.remove('hidden');
-        } else {
-            inputFechaReforma.required = false;
-            labelObligatoria.classList.add('hidden');
+        actualizarArchivoSeleccionado(this.files[0]);
+    });
+    ['dragenter', 'dragover'].forEach(function(eventName) {
+        zonaSoltarPdf.addEventListener(eventName, function(event) {
+            event.preventDefault();
+            zonaSoltarPdf.classList.add('border-blue-500', 'bg-blue-50');
+        });
+    });
+    ['dragleave', 'drop'].forEach(function(eventName) {
+        zonaSoltarPdf.addEventListener(eventName, function(event) {
+            event.preventDefault();
+            zonaSoltarPdf.classList.remove('border-blue-500', 'bg-blue-50');
+        });
+    });
+    zonaSoltarPdf.addEventListener('drop', function(event) {
+        const archivos = event.dataTransfer.files;
+        if (archivos.length) {
+            const transferencia = new DataTransfer();
+            transferencia.items.add(archivos[0]);
+            inputPdf.files = transferencia.files;
+            actualizarArchivoSeleccionado(archivos[0]);
         }
     });
 

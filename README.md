@@ -6,7 +6,7 @@
 [![Django](https://img.shields.io/badge/Django-5.x-green.svg)](https://www.djangoproject.com/)
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16%20%2B%20pgvector-blue.svg)](https://github.com/pgvector/pgvector)
 [![TailwindCSS](https://img.shields.io/badge/Tailwind-CSS%20Standalone-38bdf8.svg)](https://tailwindcss.com/)
-[![Tests](https://img.shields.io/badge/Tests-15%2F15%20Passing-success.svg)]()
+[![Tests](https://img.shields.io/badge/Tests-19%2F19%20Passing-success.svg)]()
 [![Docker](https://img.shields.io/badge/Docker-Ready-2496ed.svg)](https://www.docker.com/)
 
 ---
@@ -15,7 +15,9 @@
 
 * **Acceso Estrictamente Autenticado:** Protección global de todas las rutas mediante el middleware perimetral `AutenticacionRequeridaMiddleware`. Bloqueo absoluto a usuarios anónimos o no autorizados.
 * **Procesamiento de PDF en Memoria (Zero Persistent Storage):** Ingesta e indexación de leyes sin almacenar archivos PDF de forma física en el disco del servidor ni en la base de datos (procesamiento en streams `io.BytesIO`).
-* **Chunking Semántico y Estructurado:** Segmentación de textos legales respetando párrafos, oraciones y artículos normativos con solapamiento (*overlap*) dinámico, evitando cortes arbitrarios de palabras o conceptos.
+* **Carga Completa y Deduplicación por Contenido:** Se extrae e indexa todo el texto legible del PDF. El sistema compara el hash del texto extraído, por lo que no vuelve a vectorizar una ley sin cambios aunque el archivo tenga metadatos PDF distintos; al editar una ley, conserva sus fragmentos existentes cuando el contenido no cambió. También conserva el hash binario para reconocer cargas históricas idénticas.
+* **Chunking Semántico y Estructurado:** Segmentación del documento completo respetando párrafos y oraciones, con solapamiento y límites máximos por fragmento. Las oraciones extensas se dividen en límites de palabra para que ninguna parte del texto quede fuera de la indexación.
+* **Carga cómoda de archivos:** El gestor puede seleccionar el PDF desde el explorador o arrastrarlo y soltarlo en el formulario de carga o actualización.
 * **Embeddings Locales:** Generación de representaciones vectoriales densas de 768 dimensiones ejecutada en el backend local utilizando `sentence-transformers` (`paraphrase-multilingual-mpnet-base-v2`), eliminando costos y cuotas externas para la indexación.
 * **Índices Vectoriales HNSW en `pgvector`:** Aceleración de la similitud coseno mediante el índice de grafos jerárquicos navegables `HnswIndex` (`vector_cosine_ops`), garantizando búsquedas sublineales en tiempo real.
 * **Búsqueda Híbrida con Reciprocal Rank Fusion (RRF):** Fusión sinérgica entre la búsqueda semántica vectorial y el motor de *Full-Text Search* en español de PostgreSQL (`SearchVector` / `SearchQuery`), garantizando máxima precisión ante citas numéricas de artículos (ej. *"Artículo 123"*), siglas (*"LFT"*, *"CPEUM"*) o términos literales.
@@ -71,7 +73,7 @@
 │   │   ├── decorators.py           # @roles_requeridos para control de acceso RBAC
 │   │   ├── middleware.py           # AutenticacionRequeridaMiddleware (Zero-Trust)
 │   │   ├── models.py               # Usuario, LeyFederal, FragmentoNormativo, Conversacion, Mensaje, RegistroFalloAPI
-│   │   ├── tests.py                # Suite de 15 pruebas automatizadas
+│   │   ├── tests.py                # Suite de 19 pruebas automatizadas
 │   │   ├── urls.py
 │   │   └── __init__.py
 │   └── __init__.py
@@ -175,7 +177,7 @@ Abre tu navegador e ingresa a: **[http://localhost:8000](http://localhost:8000)*
 
 ## Ejecución de Pruebas Automatizadas
 
-El proyecto cuenta con una suite integral de **15 pruebas automatizadas** que validan el ciclo completo (cuotas, middleware, aislamiento de roles, procesamiento de PDF en memoria, conmutación de LLMs y búsqueda híbrida):
+El proyecto cuenta con una suite integral de **19 pruebas automatizadas** que validan el ciclo completo (cuotas, middleware, aislamiento de roles, procesamiento y deduplicación de PDF, conmutación de LLMs y búsqueda híbrida):
 
 ```bash
 docker-compose exec web python manage.py test apps.core
@@ -220,7 +222,7 @@ flowchart TD
 ```
 
 1. **Autenticación:** Inicio de sesión con correo y contraseña. Los nuevos usuarios pueden registrarse mediante el formulario público con rol de *Usuario Registrado*.
-2. **Carga e Ingesta (Gestor):** Carga temporal de archivos PDF de Leyes Federales vigentes. Se extrae el texto, se generan fragmentos semánticos y se indexan en `pgvector`. El archivo físico se descarta al finalizar.
+2. **Carga e Ingesta (Gestor):** Selecciona o arrastra un PDF de Ley Federal vigente. Se extrae todo el texto legible, se divide en fragmentos acotados con solapamiento y se indexa en `pgvector`. La deduplicación por hash del texto evita volver a procesar contenido sin cambios aunque cambien los metadatos del PDF. El archivo físico se descarta al finalizar.
 3. **Chat Jurídico (Usuario Registrado):** Realiza preguntas normativas en lenguaje natural. El motor híbrido localiza los artículos aplicables y el LLM responde citando la ley y su última fecha de reforma registrada.
 4. **Supervisión y Telemetría (Administrador):** Monitoreo en tiempo real de usuarios, estado de cuentas y registros de conmutación de APIs.
 

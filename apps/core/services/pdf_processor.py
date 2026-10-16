@@ -28,73 +28,72 @@ def _limpiar_texto(texto):
 
 
 def _fragmentar_texto_estructurado(texto, chunk_size=1000, overlap=150):
-    """
-    Fragmenta el texto legal respetando párrafos, oraciones y límites de palabras,
-    evitando cortar palabras a la mitad o descontextualizar artículos (RF-2.2, RF-2.3).
-    """
-    # Intentar dividir primero por párrafos
-    parrafos = [p.strip() for p in texto.split('\n\n') if p.strip()]
-    if not parrafos:
-        parrafos = [texto]
+    """Divide todo el texto en fragmentos acotados, conservando párrafos y oraciones."""
+    if chunk_size < 1:
+        raise ValueError("chunk_size debe ser mayor que cero.")
+
+    def dividir_largo(unidad):
+        if len(unidad) <= chunk_size:
+            return [unidad]
+
+        partes = []
+        for oracion in re.split(r'(?<=[.!?])\s+', unidad):
+            if len(oracion) <= chunk_size:
+                partes.append(oracion)
+                continue
+
+            parte = ""
+            for palabra in oracion.split():
+                palabras = [palabra[i:i + chunk_size] for i in range(0, len(palabra), chunk_size)]
+                for segmento in palabras:
+                    candidato = f"{parte} {segmento}".strip()
+                    if parte and len(candidato) > chunk_size:
+                        partes.append(parte)
+                        parte = segmento
+                    else:
+                        parte = candidato
+            if parte:
+                partes.append(parte)
+        return partes
 
     chunks = []
     chunk_actual = ""
+    for parrafo in (p.strip() for p in texto.split("\n\n") if p.strip()):
+        partes = dividir_largo(parrafo)
+        separador = "\n\n"
+        for parte in partes:
+            separador_actual = separador if chunk_actual else ""
+            candidato = f"{chunk_actual}{separador_actual}{parte}".strip()
+            if len(candidato) <= chunk_size:
+                chunk_actual = candidato
+                separador = " "
+                continue
 
-    for parrafo in parrafos:
-        # Si agregar este párrafo no excede el tamaño máximo, acumularlo
-        if not chunk_actual:
-            chunk_actual = parrafo
-        elif len(chunk_actual) + len(parrafo) + 2 <= chunk_size:
-            chunk_actual += "\n\n" + parrafo
-        else:
-            # Si el párrafo actual por sí solo supera chunk_size, dividirlo por oraciones o palabras
-            if len(parrafo) > chunk_size:
-                # Primero guardamos lo que teníamos acumulado
-                if chunk_actual:
-                    chunks.append(chunk_actual.strip())
-                    chunk_actual = ""
-
-                # Dividir el párrafo largo en oraciones
-                oraciones = re.split(r'(?<=[.!?])\s+', parrafo)
-                sub_chunk = ""
-                for oracion in oraciones:
-                    if not sub_chunk:
-                        sub_chunk = oracion
-                    elif len(sub_chunk) + len(oracion) + 1 <= chunk_size:
-                        sub_chunk += " " + oracion
-                    else:
-                        chunks.append(sub_chunk.strip())
-                        # Mantener overlap de palabras finales si es posible
-                        palabras = sub_chunk.split()
-                        traslape = " ".join(palabras[-15:]) if len(palabras) > 15 else ""
-                        sub_chunk = (traslape + " " + oracion).strip() if traslape else oracion
-
-                if sub_chunk:
-                    chunk_actual = sub_chunk
-            else:
-                # Guardamos el chunk actual y preparamos el siguiente con overlap
-                chunks.append(chunk_actual.strip())
-                # Overlap: tomar los últimos caracteres/palabras del chunk anterior
+            if chunk_actual:
+                chunks.append(chunk_actual)
                 palabras_previas = chunk_actual.split()
-                overlap_texto = ""
-                if palabras_previas:
-                    # Seleccionar suficientes palabras para aproximar el overlap deseado
-                    palabras_acumuladas = []
-                    longitud = 0
-                    for pal in reversed(palabras_previas):
-                        if longitud + len(pal) + 1 <= overlap:
-                            palabras_acumuladas.insert(0, pal)
-                            longitud += len(pal) + 1
-                        else:
-                            break
-                    overlap_texto = " ".join(palabras_acumuladas)
+                traslape = ""
+                longitud = 0
+                for palabra in reversed(palabras_previas):
+                    if longitud + len(palabra) + 1 > overlap:
+                        break
+                    traslape = f"{palabra} {traslape}".strip()
+                    longitud += len(palabra) + 1
+                espacio_disponible = chunk_size - len(parte) - 1
+                if espacio_disponible > 0 and traslape:
+                    traslape = traslape[-espacio_disponible:].lstrip()
+                    if " " in traslape:
+                        traslape = traslape.split(" ", 1)[1]
+                else:
+                    traslape = ""
+                chunk_actual = f"{traslape} {parte}".strip() if traslape else parte
+            else:
+                chunk_actual = parte
+            separador = " "
 
-                chunk_actual = (overlap_texto + "\n\n" + parrafo).strip() if overlap_texto else parrafo
-
-    if chunk_actual and chunk_actual.strip():
-        chunks.append(chunk_actual.strip())
-
-    return [c for c in chunks if c.strip()]
+    if chunk_actual:
+        chunks.append(chunk_actual)
+    return chunks
 
 
 def procesar_pdf_en_memoria(file_obj, chunk_size=1000, overlap=150):
@@ -104,8 +103,8 @@ def procesar_pdf_en_memoria(file_obj, chunk_size=1000, overlap=150):
     """
     file_bytes = file_obj.read()
     
-    # Cálculo del Hash SHA-256 del PDF completo
-    hash_documento = hashlib.sha256(file_bytes).hexdigest()
+    # Se conserva el hash binario para detectar duplicados históricos exactos.
+    hash_archivo = hashlib.sha256(file_bytes).hexdigest()
 
     # Lectura del contenido sin escribir en el almacenamiento físico
     try:
@@ -123,10 +122,11 @@ def procesar_pdf_en_memoria(file_obj, chunk_size=1000, overlap=150):
     if not texto_limpio:
         raise ValidationError("El archivo PDF no contiene texto legible o es un documento escaneado como imagen.")
 
-    # Chunking estructurado y semántico
+    # El hash del contenido ignora cambios de metadatos del PDF y saltos de línea.
+    hash_contenido = hashlib.sha256(texto_limpio.encode("utf-8")).hexdigest()
     chunks = _fragmentar_texto_estructurado(texto_limpio, chunk_size=chunk_size, overlap=overlap)
 
-    return hash_documento, chunks
+    return hash_archivo, hash_contenido, chunks
 
 
 def generar_vector_embedding(texto):
