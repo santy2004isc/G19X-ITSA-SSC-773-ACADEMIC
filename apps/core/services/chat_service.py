@@ -3,16 +3,34 @@ import time
 import groq
 from google import genai
 from google.genai.errors import APIError
+from django.conf import settings
 from pgvector.django import CosineDistance
 from ..models import FragmentoNormativo, LeyFederal, Mensaje, RegistroFalloAPI
 from .pdf_processor import generar_vector_embedding  
 
-# Configuración de clientes
-groq_client = groq.Groq(api_key=os.getenv("GROQ_API_KEY"))
-gemini_client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
-
 MODELO_GROQ_DEFAULT = "openai/gpt-oss-120b" 
 MODELO_GEMINI_DEFAULT = "gemini-3.8-flash"
+
+MENSAJE_SATURACION_APIS = (
+    "En este momento los servicios de consulta inteligente se encuentran "
+    "temporalmente saturados debido a la alta demanda en los proveedores externos de IA. "
+    "Por favor, intenta formular tu pregunta nuevamente en unos momentos."
+)
+
+def get_groq_client():
+    """
+    Instancia el cliente de Groq utilizando settings de Django con timeout estricto de 5s (RNF-04).
+    """
+    api_key = getattr(settings, 'GROQ_API_KEY', None) or os.getenv("GROQ_API_KEY", "")
+    return groq.Groq(api_key=api_key, timeout=5.0)
+
+
+def get_gemini_client():
+    """
+    Instancia el cliente de Gemini utilizando settings de Django.
+    """
+    api_key = getattr(settings, 'GEMINI_API_KEY', None) or os.getenv("GEMINI_API_KEY", "")
+    return genai.Client(api_key=api_key)
 
 
 def buscar_contexto_normativo(pregunta_usuario, top_k=4):
@@ -45,10 +63,13 @@ def buscar_contexto_normativo(pregunta_usuario, top_k=4):
 
     return contexto_texto, citas
 
+
 def generar_respuesta_ia_con_fallback(pregunta_usuario, contexto_normativo, usuario=None, modelo_solicitado=None):
     """
-    Procesa la llamada a Groq y conmuta a Gemini si falla.
+    Procesa la llamada a Groq y conmuta a Gemini si falla (RF-3.2, RF-3.3).
     Registra la auditoría del fallo en RegistroFalloAPI.
+    Si ambos proveedores fallan por saturación/límite de cuota, devuelve
+    una notificación amigable sin romper la sesión del usuario.
     """
     if not contexto_normativo.strip():
         return (
@@ -76,8 +97,9 @@ def generar_respuesta_ia_con_fallback(pregunta_usuario, contexto_normativo, usua
     proveedor_usado = Mensaje.ProveedorIA.GROQ
     conmutado = False
 
-    # 1. INTENTO PRINCIPAL: GROQ CLOUD
+    # 1. INTENTO PRINCIPAL: GROQ CLOUD (Prioritario, timeout <= 5s)
     try:
+        groq_client = get_groq_client()
         modelo_groq = modelo_solicitado if isinstance(modelo_solicitado, str) else MODELO_GROQ_DEFAULT
         
         response = groq_client.chat.completions.create(
@@ -92,13 +114,14 @@ def generar_respuesta_ia_con_fallback(pregunta_usuario, contexto_normativo, usua
         return response.choices[0].message.content, proveedor_usado, conmutado
 
     except Exception as e_groq:
-        # 2. FALLBACK A GOOGLE GEMINI
+        # 2. FALLBACK AUTOMÁTICO A GOOGLE GEMINI (Respaldo por Rate Limit o Timeout)
         proveedor_usado = Mensaje.ProveedorIA.GEMINI
         conmutado = True
         codigo_error_groq = type(e_groq).__name__
         
         for intento in range(2):
             try:
+                gemini_client = get_gemini_client()
                 response = gemini_client.models.generate_content(
                     model=MODELO_GEMINI_DEFAULT,
                     contents=user_prompt,
@@ -108,7 +131,7 @@ def generar_respuesta_ia_con_fallback(pregunta_usuario, contexto_normativo, usua
                     }
                 )
                 
-             
+                # Registro de auditoría del fallback exitoso (RF-3.3, RNF-04)
                 RegistroFalloAPI.objects.create(
                     usuario=usuario,
                     proveedor_solicitado=Mensaje.ProveedorIA.GROQ,
@@ -124,7 +147,7 @@ def generar_respuesta_ia_con_fallback(pregunta_usuario, contexto_normativo, usua
                     time.sleep(1)
                     continue
                 
-                
+                # Ambos fallaron: auditoría de fallo no exitoso
                 RegistroFalloAPI.objects.create(
                     usuario=usuario,
                     proveedor_solicitado=Mensaje.ProveedorIA.GROQ,
@@ -133,8 +156,5 @@ def generar_respuesta_ia_con_fallback(pregunta_usuario, contexto_normativo, usua
                     exitoso=False
                 )
                 
-                raise RuntimeError(f"Fallo en generación de IA: Groq ({str(e_groq)}) | Gemini ({str(e_gemini)})")
-
-
-
-            
+                # Notificación controlada y amigable al usuario (RF-3.3) sin romper la sesión ni provocar error 500
+                return MENSAJE_SATURACION_APIS, Mensaje.ProveedorIA.GEMINI, True

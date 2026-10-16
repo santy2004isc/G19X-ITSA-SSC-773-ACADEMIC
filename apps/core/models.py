@@ -97,7 +97,11 @@ class Usuario(AbstractBaseUser, PermissionsMixin):
         Verifica si cambió el día. De ser así, reinicia el contador de mensajes.
         """
         hoy = timezone.now().date()
-        if self.fecha_ultimo_reset != hoy:
+        fecha_reset = self.fecha_ultimo_reset
+        if hasattr(fecha_reset, 'date'):
+            fecha_reset = fecha_reset.date()
+
+        if fecha_reset != hoy:
             self.mensajes_usados_hoy = 0
             self.fecha_ultimo_reset = hoy
             self.save(update_fields=['mensajes_usados_hoy', 'fecha_ultimo_reset'])
