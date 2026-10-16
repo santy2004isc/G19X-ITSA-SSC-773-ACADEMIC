@@ -1,7 +1,7 @@
 import uuid
 from django.db import models
 from django.contrib.auth.models import AbstractBaseUser, BaseUserManager, PermissionsMixin
-from pgvector.django import VectorField
+from pgvector.django import VectorField, HnswIndex
 from django.utils import timezone
 
 # ==========================================
@@ -205,6 +205,15 @@ class FragmentoNormativo(models.Model):
         db_table = 'fragmentos_normativos'
         verbose_name = 'Fragmento Normativo'
         verbose_name_plural = 'Fragmentos Normativos'
+        indexes = [
+            HnswIndex(
+                name='idx_frag_vec_hnsw',
+                fields=['vector_embedding'],
+                m=16,
+                ef_construction=64,
+                opclasses=['vector_cosine_ops'],
+            ),
+        ]
 
     def __str__(self):
         return f"Fragmento {self.id} - Ley: {self.ley.siglas or self.ley.id}"

@@ -4,6 +4,7 @@ import groq
 from google import genai
 from google.genai.errors import APIError
 from django.conf import settings
+from django.contrib.postgres.search import SearchVector, SearchQuery, SearchRank
 from pgvector.django import CosineDistance
 from ..models import FragmentoNormativo, LeyFederal, Mensaje, RegistroFalloAPI
 from .pdf_processor import generar_vector_embedding  
@@ -35,16 +36,57 @@ def get_gemini_client():
 
 def buscar_contexto_normativo(pregunta_usuario, top_k=4):
     """
-    Busca los K fragmentos con menor distancia de coseno filtrando
-    ÚNICAMENTE leyes con estado VIGENTE.
+    Búsqueda híbrida (Semántica + Léxica) con fusión de rangos recíprocos (RRF).
+    Combina la similitud de coseno en pgvector con el motor de búsqueda léxica
+    Full-Text Search de PostgreSQL, optimizado para artículos y conceptos jurídicos.
+    Filtra ÚNICAMENTE leyes con estado VIGENTE.
     """
     vector_pregunta = generar_vector_embedding(pregunta_usuario)
+    candidatos_k = max(top_k * 3, 10)
     
-    resultados = FragmentoNormativo.objects.select_related('ley').filter(
-        ley__estado=LeyFederal.Estado.VIGENTE
-    ).annotate(
-        distancia=CosineDistance('vector_embedding', vector_pregunta)
-    ).order_by('distancia')[:top_k]
+    candidatos_dict = {}
+    rrf_scores = {}
+    k_rrf = 60
+
+    # 1. Recuperación Vectorial (Semántica mediante CosineDistance y HNSW)
+    try:
+        qs_vectorial = FragmentoNormativo.objects.select_related('ley').filter(
+            ley__estado=LeyFederal.Estado.VIGENTE
+        ).annotate(
+            distancia=CosineDistance('vector_embedding', vector_pregunta)
+        ).order_by('distancia')[:candidatos_k]
+
+        for rank, frag in enumerate(qs_vectorial):
+            frag_id = frag.id
+            candidatos_dict[frag_id] = frag
+            rrf_scores[frag_id] = rrf_scores.get(frag_id, 0.0) + (1.0 / (k_rrf + (rank + 1)))
+    except Exception:
+        pass
+
+    # 2. Recuperación Léxica / Full-Text Search (Exactitud en artículos y términos legales)
+    try:
+        search_query = SearchQuery(pregunta_usuario, config='spanish', search_type='websearch')
+        search_vector = SearchVector('contenido_fragmento', config='spanish')
+
+        qs_lexica = FragmentoNormativo.objects.select_related('ley').filter(
+            ley__estado=LeyFederal.Estado.VIGENTE
+        ).annotate(
+            rank_lex=SearchRank(search_vector, search_query)
+        ).filter(
+            rank_lex__gt=0.01
+        ).order_by('-rank_lex')[:candidatos_k]
+
+        for rank, frag in enumerate(qs_lexica):
+            frag_id = frag.id
+            candidatos_dict[frag_id] = frag
+            # Se otorga un multiplicador de 1.2 a la coincidencia léxica exacta (ej. números de artículo o siglas)
+            rrf_scores[frag_id] = rrf_scores.get(frag_id, 0.0) + (1.2 / (k_rrf + (rank + 1)))
+    except Exception:
+        pass
+
+    # 3. Selección y ordenamiento por puntuación RRF combinada
+    ids_ordenados = sorted(rrf_scores.keys(), key=lambda fid: rrf_scores[fid], reverse=True)[:top_k]
+    resultados = [candidatos_dict[fid] for fid in ids_ordenados]
 
     contexto_texto = ""
     citas = []

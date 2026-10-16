@@ -20,3 +20,7 @@ db.sqlite3
 
 # Docker
 .docker/
+
+# Node / Frontend dependencies
+node_modules/
+.npm/

@@ -258,3 +258,40 @@ class ChatServiceFallbackTest(TestCase):
         self.assertEqual(RegistroFalloAPI.objects.count(), 1)
         registro = RegistroFalloAPI.objects.first()
         self.assertFalse(registro.exitoso)
+
+
+class BusquedaHibridaTest(TestCase):
+    """
+    Pruebas para la búsqueda híbrida (Vectorial + Full-Text Search) con RRF.
+    """
+    def setUp(self):
+        self.ley = LeyFederal.objects.create(
+            nombre="Ley Federal del Trabajo",
+            siglas="LFT",
+            fecha_publicacion=timezone.now().date(),
+            hash_documento="dummyhashlft1234567890abcdef1234567890abcdef1234567890abcdef1234",
+            estado=LeyFederal.Estado.VIGENTE
+        )
+        # Vector dummy de 768 ceros con un valor inicial
+        dummy_vector = [0.0] * 768
+        dummy_vector[0] = 0.5
+        self.fragmento = FragmentoNormativo.objects.create(
+            ley=self.ley,
+            contenido_fragmento="Artículo 123. Toda persona tiene derecho al trabajo digno y socialmente útil.",
+            vector_embedding=dummy_vector,
+            hash_fragmento="hashfragmento123dummyabcdef1234567890abcdef1234567890abcdef1234"
+        )
+
+    @patch('apps.core.services.chat_service.generar_vector_embedding')
+    def test_busqueda_hibrida_recupera_fragmentos_y_citas(self, mock_generar_vector):
+        dummy_query_vector = [0.0] * 768
+        dummy_query_vector[0] = 0.5
+        mock_generar_vector.return_value = dummy_query_vector
+
+        from .services.chat_service import buscar_contexto_normativo
+        contexto, citas = buscar_contexto_normativo("artículo 123 trabajo digno", top_k=2)
+
+        self.assertIn("Ley Federal del Trabajo", contexto)
+        self.assertIn("Artículo 123", contexto)
+        self.assertEqual(len(citas), 1)
+        self.assertEqual(citas[0]['siglas'], "LFT")

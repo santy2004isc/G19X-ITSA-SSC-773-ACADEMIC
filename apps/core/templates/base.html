@@ -1,11 +1,12 @@
+{% load static %}
 <!DOCTYPE html>
 <html lang="es">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}ACCN - Consulta Normativa{% endblock %}</title>
-    <!-- Tailwind CSS CDN -->
-    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Hoja de Estilos Tailwind CSS Compilada Estáticamente para Producción -->
+    <link rel="stylesheet" href="{% static 'css/dist.css' %}">
 </head>
 <body class="bg-slate-50 min-h-screen text-slate-800 flex flex-col font-sans">
     

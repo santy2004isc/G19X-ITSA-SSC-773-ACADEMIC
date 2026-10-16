@@ -48,6 +48,7 @@
 │   │   ├── admin.py
 │   │   ├── apps.py
 │   │   ├── decorators.py
+|   |   ├──  middleware.py  
 │   │   ├── models.py
 │   │   ├── tests.py
 │   │   └── urls.py

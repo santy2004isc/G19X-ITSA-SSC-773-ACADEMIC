@@ -1,0 +1,24 @@
+{
+  "name": "proyecto_legal",
+  "version": "1.0.0",
+  "description": "> **Plataforma web monolítica basada en arquitectura RAG (Retrieval-Augmented Generation) para la localización, extracción y consulta semántica automatizada de las Leyes Federales Públicas de México.**",
+  "main": "tailwind.config.js",
+  "scripts": {
+    "build-css": "tailwindcss -i ./static/src/input.css -o ./static/css/dist.css --minify",
+    "watch-css": "tailwindcss -i ./static/src/input.css -o ./static/css/dist.css --watch"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/santy2004isc/G19X-ITSA-SSC-773-ACADEMIC.git"
+  },
+  "keywords": [],
+  "author": "Santiago Silva Calderón",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/santy2004isc/G19X-ITSA-SSC-773-ACADEMIC/issues"
+  },
+  "homepage": "https://github.com/santy2004isc/G19X-ITSA-SSC-773-ACADEMIC#readme",
+  "devDependencies": {
+    "tailwindcss": "^3.4.19"
+  }
+}
