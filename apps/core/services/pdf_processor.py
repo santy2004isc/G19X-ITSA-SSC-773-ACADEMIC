@@ -152,11 +152,19 @@ def extraer_metadatos_primera_pagina(file_obj):
         "",
     )
 
-    nombre_archivo = re.sub(r"\.pdf$", "", file_obj.name, flags=re.I)
-    nombre_archivo = re.sub(r"[_-]+", " ", nombre_archivo).strip()
-    nombre = titulo or nombre_archivo
+    nombre = titulo or ""
 
-    siglas = next(iter(re.findall(r"\(([A-ZÁÉÍÓÚÜÑ]{2,10})\)", texto)), "")
+    palabras_enlace = {
+        "a", "al", "de", "del", "el", "e", "en", "la", "las", "los",
+        "o", "para", "por", "un", "una", "unos", "unas", "y",
+    }
+    nombre_sin_parentesis = re.sub(r"\([^)]*\)", "", nombre)
+    palabras_nombre = re.findall(r"[A-Za-zÁÉÍÓÚÜÑáéíóúüñ]+", nombre_sin_parentesis)
+    siglas = "".join(
+        palabra[0].upper()
+        for palabra in palabras_nombre
+        if palabra.lower() not in palabras_enlace
+    ) if titulo else ""
 
     meses = {
         "enero": "01", "febrero": "02", "marzo": "03", "abril": "04",
@@ -185,29 +193,60 @@ def extraer_metadatos_primera_pagina(file_obj):
     fecha_publicacion = ""
     fecha_reforma = ""
     if fechas:
-        fecha_publicacion = fechas[0][1]
-        for coincidencia in re.finditer(
-            r"publicad[oa]|publicaci[oó]n|diario oficial|d\.?\s*o\.?\s*f\.?",
-            texto,
-            re.I,
-        ):
-            fecha_publicacion = min(
-                fechas,
-                key=lambda fecha: abs(fecha[0] - coincidencia.start()),
-            )[1]
-            break
-        for coincidencia in re.finditer(r"reform", texto, re.I):
-            fecha_cercana = min(fechas, key=lambda fecha: abs(fecha[0] - coincidencia.start()))
-            fecha_reforma = fecha_cercana[1]
-            break
+        marcador_texto_vigente = re.search(r"\btexto\s+vigente\b", texto, re.I)
+        if marcador_texto_vigente:
+            fechas_antes_del_texto_vigente = [
+                fecha for fecha in fechas
+                if fecha[0] < marcador_texto_vigente.start()
+            ]
+            if fechas_antes_del_texto_vigente:
+                fecha_publicacion = fechas_antes_del_texto_vigente[-1][1]
+
+        if not fecha_publicacion:
+            for coincidencia in re.finditer(
+                r"publicad[oa]|publicaci[oó]n|diario oficial|d\.?\s*o\.?\s*f\.?",
+                texto,
+                re.I,
+            ):
+                contexto_previo = texto[max(0, coincidencia.start() - 45):coincidencia.start()]
+                if re.search(r"\breform\w*\b", contexto_previo, re.I):
+                    continue
+                fechas_cercanas = [
+                    fecha for fecha in fechas
+                    if abs(fecha[0] - coincidencia.start()) <= 180
+                ]
+                if fechas_cercanas:
+                    fecha_publicacion = min(
+                        fechas_cercanas,
+                        key=lambda fecha: abs(fecha[0] - coincidencia.start()),
+                    )[1]
+                    break
+
+        for coincidencia in re.finditer(r"\breform\w*\b", texto, re.I):
+            fechas_cercanas = [
+                fecha for fecha in fechas
+                if coincidencia.start() - 30 <= fecha[0] <= coincidencia.end() + 180
+            ]
+            if fechas_cercanas:
+                fecha_reforma = min(
+                    fechas_cercanas,
+                    key=lambda fecha: abs(fecha[0] - coincidencia.end()),
+                )[1]
+                break
 
     estado = "ABROGADA" if re.search(r"\babrogad[ao]s?\b", texto, re.I) else ""
+    requiere_captura_manual = (
+        not titulo
+        or len(nombre) > 100
+        or len(siglas) > 12
+    )
     return {
         "nombre": nombre[:500],
         "siglas": siglas[:50],
         "fecha_publicacion": fecha_publicacion,
         "fecha_ultima_reforma": fecha_reforma,
         "estado": estado,
+        "requiere_captura_manual": requiere_captura_manual,
     }
 
 

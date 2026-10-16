@@ -6,7 +6,7 @@
 <div class="min-h-screen bg-slate-50 flex items-center justify-center p-6">
     <div class="w-full max-w-xl bg-white rounded-xl shadow-lg border border-slate-200 p-8">
         <h1 class="text-xl font-bold text-slate-900 mb-2">Ingesta de Ley Federal en PDF</h1>
-        <p class="text-xs text-slate-500 mb-6">El archivo se procesará en memoria y sus vectores se registrarán. El documento PDF no será almacenado en disco.</p>
+        <p class="text-xs text-slate-500 mb-6">Puedes escribir los datos manualmente o seleccionar un documento para obtener sugerencias de su primera página. Los campos que ya completaste se conservarán; revisa y completa manualmente lo que no aparezca en el documento. </p>
 
         <form id="formCargarDocumento" method="post" enctype="multipart/form-data" class="space-y-4">
             {% csrf_token %}
@@ -97,7 +97,10 @@
     let solicitudAnalisis = 0;
 
     Object.entries(campos).forEach(function([nombre, campo]) {
-        if (campo) campo.addEventListener('input', function() { camposEditados.add(nombre); });
+        if (campo) {
+            campo.addEventListener('input', function() { camposEditados.add(nombre); });
+            campo.addEventListener('change', function() { camposEditados.add(nombre); });
+        }
     });
 
     function mostrarArchivoPdf(archivo) {
@@ -132,9 +135,14 @@
 
             Object.entries(resultado.metadatos).forEach(function([nombre, valor]) {
                 const campo = campos[nombre];
-                if (campo && valor && !camposEditados.has(nombre)) campo.value = valor;
+                if (resultado.metadatos.requiere_captura_manual && (nombre === 'nombre' || nombre === 'siglas')) return;
+                if (campo && valor && !camposEditados.has(nombre) && (!campo.value.trim() || nombre === 'estado')) {
+                    campo.value = valor;
+                }
             });
-            estadoAnalisisPdf.textContent = 'Sugerencias obtenidas de la primera página. Revísalas y corrígelas si es necesario.';
+            estadoAnalisisPdf.textContent = resultado.metadatos.requiere_captura_manual
+                ? 'No se identificó con certeza el nombre oficial o parece extenso. Ingresa o verifica manualmente el nombre y las siglas; completa también las fechas que no se hayan detectado.'
+                : 'Sugerencias obtenidas de la primera página. Los campos llenos se conservaron; revisa y completa manualmente los datos faltantes.';
             estadoAnalisisPdf.className = 'mt-2 min-h-5 text-xs font-medium text-emerald-700';
         } catch (error) {
             if (idSolicitud !== solicitudAnalisis) return;

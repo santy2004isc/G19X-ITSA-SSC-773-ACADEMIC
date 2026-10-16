@@ -263,6 +263,57 @@ class PDFProcessorTest(TestCase):
         self.assertEqual(metadatos['fecha_publicacion'], '1970-04-01')
         self.assertEqual(metadatos['fecha_ultima_reforma'], '2024-01-24')
 
+    @patch('apps.core.services.pdf_processor.pypdf.PdfReader')
+    def test_siglas_se_forman_del_nombre_y_fechas_separan_publicacion_de_reforma(self, mock_pdf_reader):
+        pagina = MagicMock()
+        pagina.extract_text.return_value = (
+            'LEY GENERAL DE LOS DERECHOS DE NIÑAS, NIÑOS Y ADOLESCENTES\n'
+            '1 de diciembre de 2014\n'
+            'TEXTO VIGENTE\n'
+            'Última reforma publicada el 11 de enero de 2021.'
+        )
+        mock_pdf_reader.return_value.pages = [pagina]
+        archivo = io.BytesIO(b'contenido PDF')
+        archivo.name = 'ley.pdf'
+
+        metadatos = extraer_metadatos_primera_pagina(archivo)
+
+        self.assertEqual(metadatos['siglas'], 'LGDNNA')
+        self.assertEqual(metadatos['fecha_publicacion'], '2014-12-01')
+        self.assertEqual(metadatos['fecha_ultima_reforma'], '2021-01-11')
+
+    @patch('apps.core.services.pdf_processor.pypdf.PdfReader')
+    def test_no_inventa_fecha_de_reforma_si_no_se_indica(self, mock_pdf_reader):
+        pagina = MagicMock()
+        pagina.extract_text.return_value = (
+            'CÓDIGO CIVIL FEDERAL\n'
+            'Publicado en el Diario Oficial de la Federación el 26 de mayo de 1928.\n'
+            'TEXTO VIGENTE'
+        )
+        mock_pdf_reader.return_value.pages = [pagina]
+        archivo = io.BytesIO(b'contenido PDF')
+        archivo.name = 'codigo.pdf'
+
+        metadatos = extraer_metadatos_primera_pagina(archivo)
+
+        self.assertEqual(metadatos['fecha_publicacion'], '1928-05-26')
+        self.assertEqual(metadatos['fecha_ultima_reforma'], '')
+
+    @patch('apps.core.services.pdf_processor.pypdf.PdfReader')
+    def test_nombre_oficial_largo_solicita_captura_manual(self, mock_pdf_reader):
+        pagina = MagicMock()
+        pagina.extract_text.return_value = (
+            'LEY PARA LA ORGANIZACIÓN Y FUNCIONAMIENTO DE LAS AUTORIDADES '
+            'COMPETENTES EN MATERIA DE DESARROLLO SOCIAL Y ECONOMICO'
+        )
+        mock_pdf_reader.return_value.pages = [pagina]
+        archivo = io.BytesIO(b'contenido PDF')
+        archivo.name = 'ley.pdf'
+
+        metadatos = extraer_metadatos_primera_pagina(archivo)
+
+        self.assertTrue(metadatos['requiere_captura_manual'])
+
     def test_rechazo_archivo_no_valido(self):
         archivo_invalido = io.BytesIO(b"No soy un archivo PDF real")
         with self.assertRaises(ValidationError):
