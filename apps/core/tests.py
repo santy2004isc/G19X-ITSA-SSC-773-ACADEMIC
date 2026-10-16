@@ -9,6 +9,8 @@ from django.core.files.uploadedfile import SimpleUploadedFile
 from pypdf import PdfWriter
 
 from .models import Usuario, LeyFederal, FragmentoNormativo, Conversacion, Mensaje, RegistroFalloAPI
+from .forms.auth_forms import RegistroForm
+from .forms.gestor_forms import CargarDocumentoForm
 from .services.pdf_processor import (
     _fragmentar_texto_estructurado,
     procesar_pdf_en_memoria,
@@ -19,6 +21,43 @@ from .services.chat_service import (
     generar_respuesta_ia_con_fallback,
     MENSAJE_SATURACION_APIS,
 )
+
+
+class FrontendFormValidationTest(TestCase):
+    def test_registro_exige_password_con_letra_numero_y_caracter_especial(self):
+        datos = {
+            'nombre': 'Ana',
+            'apellido': 'García',
+            'correo_electronico': 'ana@example.com',
+            'password': 'Password123!',
+            'password_confirmacion': 'Password123!',
+        }
+        self.assertTrue(RegistroForm(data=datos).is_valid())
+
+        for password in ('password1', 'Password!', 'Password123'):
+            datos['password'] = password
+            datos['password_confirmacion'] = password
+            form = RegistroForm(data=datos)
+            self.assertFalse(form.is_valid(), password)
+            self.assertIn('password', form.errors, password)
+
+    def test_nombre_de_ley_acepta_hasta_500_caracteres(self):
+        datos = {
+            'nombre': 'L' * 500,
+            'siglas': 'LF',
+            'fecha_publicacion': '2025-01-01',
+            'fecha_ultima_reforma': '',
+            'estado': LeyFederal.Estado.VIGENTE,
+        }
+        archivo = SimpleUploadedFile('ley.pdf', b'%PDF-1.4', content_type='application/pdf')
+        form = CargarDocumentoForm(data=datos, files={'archivo_pdf': archivo})
+        self.assertTrue(form.is_valid(), form.errors)
+
+        datos['nombre'] += 'L'
+        archivo = SimpleUploadedFile('ley.pdf', b'%PDF-1.4', content_type='application/pdf')
+        form = CargarDocumentoForm(data=datos, files={'archivo_pdf': archivo})
+        self.assertFalse(form.is_valid())
+        self.assertIn('nombre', form.errors)
 
 
 class UsuarioModelTest(TestCase):

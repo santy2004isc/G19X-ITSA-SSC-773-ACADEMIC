@@ -2,6 +2,11 @@ from django import forms
 from django.core.exceptions import ValidationError
 from django.core.validators import RegexValidator
 from ..models import Usuario
+from .password_validators import (
+    PASSWORD_POLICY_MESSAGE,
+    PASSWORD_POLICY_PATTERN,
+    PASSWORD_POLICY_VALIDATOR,
+)
 
 INPUT_STYLE = 'w-full px-4 py-2.5 bg-white text-slate-800 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:outline-none shadow-sm transition duration-150'
 SOLO_LETRAS_VALIDATOR = RegexValidator(
@@ -19,13 +24,22 @@ class CrearUsuarioAdminForm(forms.ModelForm):
     password = forms.CharField(
         label="Contraseña",
         min_length=8,
-        widget=forms.PasswordInput(attrs={'class': INPUT_STYLE, 'placeholder': '••••••••', 'id': 'input_create_password'}),
+        validators=[PASSWORD_POLICY_VALIDATOR],
+        widget=forms.PasswordInput(attrs={
+            'class': INPUT_STYLE, 'placeholder': 'Mínimo 8 caracteres',
+            'id': 'input_create_password', 'data-password-policy': 'true',
+            'pattern': PASSWORD_POLICY_PATTERN[1:-1], 'title': PASSWORD_POLICY_MESSAGE,
+        }),
         error_messages={'min_length': 'La contraseña debe tener al menos 8 caracteres.'}
     )
     password_confirmacion = forms.CharField(
         label="Confirmar Contraseña",
         min_length=8,
-        widget=forms.PasswordInput(attrs={'class': INPUT_STYLE, 'placeholder': '••••••••', 'id': 'input_create_password_confirm'})
+        widget=forms.PasswordInput(attrs={
+            'class': INPUT_STYLE, 'placeholder': '••••••••',
+            'id': 'input_create_password_confirm',
+            'data-password-match': 'input_create_password',
+        })
     )
 
     class Meta:
@@ -65,13 +79,22 @@ class EditarUsuarioAdminForm(forms.ModelForm):
         label="Nueva Contraseña (Opcional)",
         required=False,
         min_length=8,
-        widget=forms.PasswordInput(attrs={'class': INPUT_STYLE, 'placeholder': 'Dejar en blanco para conservar la actual', 'id': 'input_edit_password_nueva'}),
+        validators=[PASSWORD_POLICY_VALIDATOR],
+        widget=forms.PasswordInput(attrs={
+            'class': INPUT_STYLE, 'placeholder': 'Dejar en blanco para conservar la actual',
+            'id': 'input_edit_password_nueva', 'data-password-policy': 'true',
+            'pattern': PASSWORD_POLICY_PATTERN[1:-1], 'title': PASSWORD_POLICY_MESSAGE,
+        }),
         error_messages={'min_length': 'La nueva contraseña debe tener al menos 8 caracteres.'}
     )
     password_confirmacion = forms.CharField(
         label="Confirmar Nueva Contraseña",
         required=False,
-        widget=forms.PasswordInput(attrs={'class': INPUT_STYLE, 'placeholder': 'Confirmar únicamente si se cambió', 'id': 'input_edit_password_confirm'})
+        widget=forms.PasswordInput(attrs={
+            'class': INPUT_STYLE, 'placeholder': 'Confirmar únicamente si se cambió',
+            'id': 'input_edit_password_confirm',
+            'data-password-match': 'input_edit_password_nueva',
+        })
     )
 
     class Meta:

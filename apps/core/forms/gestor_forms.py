@@ -2,6 +2,11 @@ from django import forms
 from django.core.exceptions import ValidationError
 from django.core.validators import RegexValidator
 from ..models import Usuario, LeyFederal
+from .password_validators import (
+    PASSWORD_POLICY_MESSAGE,
+    PASSWORD_POLICY_PATTERN,
+    PASSWORD_POLICY_VALIDATOR,
+)
 
 INPUT_STYLE = 'w-full px-4 py-2.5 bg-white text-slate-800 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:outline-none shadow-sm transition duration-150'
 SOLO_LETRAS_VALIDATOR = RegexValidator(
@@ -37,7 +42,12 @@ class CargarDocumentoForm(forms.ModelForm):
         model = LeyFederal
         fields = ['nombre', 'siglas', 'fecha_publicacion', 'fecha_ultima_reforma', 'estado']
         widgets = {
-            'nombre': forms.TextInput(attrs={'class': INPUT_STYLE, 'placeholder': 'Ej. Ley Federal del Trabajo'}),
+            'nombre': forms.Textarea(attrs={
+                'class': INPUT_STYLE + ' resize-y',
+                'placeholder': 'Ej. Ley Federal del Trabajo',
+                'rows': 3,
+                'maxlength': 500,
+            }),
             'siglas': forms.TextInput(attrs={'class': INPUT_STYLE, 'placeholder': 'Ej. LFT'}),
             'estado': forms.Select(attrs={'class': INPUT_STYLE}),
         }
@@ -81,7 +91,11 @@ class EditarLeyFederalForm(forms.ModelForm):
         model = LeyFederal
         fields = ['nombre', 'siglas', 'fecha_publicacion', 'fecha_ultima_reforma', 'estado']
         widgets = {
-            'nombre': forms.TextInput(attrs={'class': INPUT_STYLE}),
+            'nombre': forms.Textarea(attrs={
+                'class': INPUT_STYLE + ' resize-y',
+                'rows': 3,
+                'maxlength': 500,
+            }),
             'siglas': forms.TextInput(attrs={'class': INPUT_STYLE}),
             'estado': forms.Select(attrs={'class': INPUT_STYLE}),
         }
@@ -126,13 +140,22 @@ class EditarPerfilGestorForm(forms.ModelForm):
         label="Nueva Contraseña (Opcional)",
         required=False,
         min_length=8,
-        widget=forms.PasswordInput(attrs={'class': INPUT_STYLE, 'placeholder': 'Dejar en blanco para no modificar', 'id': 'input_gestor_pass_nueva'}),
+        validators=[PASSWORD_POLICY_VALIDATOR],
+        widget=forms.PasswordInput(attrs={
+            'class': INPUT_STYLE, 'placeholder': 'Dejar en blanco para no modificar',
+            'id': 'input_gestor_pass_nueva', 'data-password-policy': 'true',
+            'pattern': PASSWORD_POLICY_PATTERN[1:-1], 'title': PASSWORD_POLICY_MESSAGE,
+        }),
         error_messages={'min_length': 'La nueva contraseña debe tener al menos 8 caracteres.'}
     )
     password_confirmacion = forms.CharField(
         label="Confirmar Nueva Contraseña",
         required=False,
-        widget=forms.PasswordInput(attrs={'class': INPUT_STYLE, 'placeholder': 'Confirmar únicamente si cambió la contraseña', 'id': 'input_gestor_pass_confirm'})
+        widget=forms.PasswordInput(attrs={
+            'class': INPUT_STYLE, 'placeholder': 'Confirmar únicamente si cambió la contraseña',
+            'id': 'input_gestor_pass_confirm',
+            'data-password-match': 'input_gestor_pass_nueva',
+        })
     )
 
     class Meta:

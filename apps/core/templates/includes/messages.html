@@ -1,0 +1,17 @@
+{% if messages %}
+<div id="messages-container" class="message-toast-list" aria-live="polite" aria-atomic="false">
+    {% for message in messages %}
+    <div role="alert" class="message-toast {% if 'error' in message.tags %}message-toast-error{% elif 'success' in message.tags %}message-toast-success{% elif 'warning' in message.tags %}message-toast-warning{% else %}message-toast-info{% endif %}">
+        {{ message }}
+    </div>
+    {% endfor %}
+</div>
+<script>
+    window.setTimeout(function () {
+        const container = document.getElementById('messages-container');
+        if (!container) return;
+        container.classList.add('message-toast-list-hidden');
+        window.setTimeout(function () { container.remove(); }, 500);
+    }, 8000);
+</script>
+{% endif %}

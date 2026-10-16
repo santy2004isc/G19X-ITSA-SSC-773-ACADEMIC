@@ -3,6 +3,11 @@ from django.contrib.auth import authenticate
 from django.core.exceptions import ValidationError
 from django.core.validators import RegexValidator
 from ..models import Usuario
+from .password_validators import (
+    PASSWORD_POLICY_MESSAGE,
+    PASSWORD_POLICY_PATTERN,
+    PASSWORD_POLICY_VALIDATOR,
+)
 
 INPUT_STYLE = 'w-full px-4 py-2.5 bg-white text-slate-800 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:outline-none shadow-sm transition duration-150'
 
@@ -82,11 +87,15 @@ class RegistroForm(forms.ModelForm):
     password = forms.CharField(
         label="Contraseña",
         min_length=8,
+        validators=[PASSWORD_POLICY_VALIDATOR],
         widget=forms.PasswordInput(attrs={
             'class': INPUT_STYLE,
-            'placeholder': '•••••••• (mínimo 8 caracteres)',
+            'placeholder': 'Mínimo 8 caracteres',
             'required': True,
             'id': 'input_password_reg',
+            'data-password-policy': 'true',
+            'pattern': PASSWORD_POLICY_PATTERN[1:-1],
+            'title': PASSWORD_POLICY_MESSAGE,
         }),
         error_messages={
             'min_length': 'La contraseña debe tener al menos 8 caracteres.'
@@ -100,6 +109,7 @@ class RegistroForm(forms.ModelForm):
             'placeholder': '••••••••',
             'required': True,
             'id': 'input_password_confirm',
+            'data-password-match': 'input_password_reg',
         })
     )
 

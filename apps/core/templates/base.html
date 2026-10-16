@@ -17,71 +17,114 @@
     <link rel="stylesheet" href="{% static 'css/dist.css' %}">
 </head>
 <body data-page="{{ request.resolver_match.url_name|default:'' }}" class="bg-slate-50 min-h-screen text-slate-800 flex flex-col font-sans">
-    <button id="themeToggle" type="button" class="theme-toggle" aria-label="Cambiar a tema oscuro" aria-pressed="false" title="Cambiar tema">Tema oscuro</button>
-    
-    <!-- Contenedor de Mensajes/Notificaciones -->
-    {% if messages %}
-    <div id="messages-container" class="max-w-2xl mx-auto mt-4 w-full px-4 transition-opacity duration-500" aria-live="polite" aria-atomic="false">
-        {% for message in messages %}
-        <div role="alert" class="p-4 mb-2 text-sm rounded-lg border shadow-sm break-words {% if 'error' in message.tags %}bg-red-50 text-red-800 border-red-300{% elif 'success' in message.tags %}bg-emerald-50 text-emerald-800 border-emerald-300{% elif 'warning' in message.tags %}bg-amber-50 text-amber-900 border-amber-300{% else %}bg-blue-50 text-blue-800 border-blue-300{% endif %}">
-            {{ message }}
-        </div>
-        {% endfor %}
-    </div>
-
-    <script>
-        setTimeout(function() {
-            const container = document.getElementById('messages-container');
-            if (container) {
-                // Inicia la transición de desvanecimiento (fade out)
-                container.style.opacity = '0';
-                
-                // Elimina el elemento por completo del DOM tras terminar la animación
-                setTimeout(function() {
-                    container.remove();
-                }, 500); // 500ms coincide con duration-500 de Tailwind
-            }
-        }, 8000);
-    </script>
-    {% endif %}
+    <button id="themeToggle" type="button" class="{% if request.resolver_match.url_name == 'login' %}theme-toggle{% else %}hidden{% endif %}" aria-label="Cambiar a tema oscuro" aria-pressed="false" title="Cambiar tema">Tema oscuro</button>
+    {% include 'includes/messages.html' %}
 
     {% block content %}{% endblock %}
 
     <!-- Script Global para Mostrar/Ocultar Contraseñas -->
     <script>
         (function () {
-            const botonTema = document.getElementById('themeToggle');
+            const botonesTema = Array.from(document.querySelectorAll('[data-theme-toggle], #themeToggle'));
             const actualizarTema = function (tema) {
                 const oscuro = tema === 'dark';
                 document.documentElement.dataset.theme = oscuro ? 'dark' : 'light';
-                botonTema.textContent = oscuro ? 'Tema claro' : 'Tema oscuro';
-                botonTema.setAttribute('aria-label', oscuro ? 'Cambiar a tema claro' : 'Cambiar a tema oscuro');
-                botonTema.setAttribute('aria-pressed', String(oscuro));
+                botonesTema.forEach(function (botonTema) {
+                    botonTema.textContent = oscuro ? 'Tema claro' : 'Tema oscuro';
+                    botonTema.setAttribute('aria-label', oscuro ? 'Cambiar a tema claro' : 'Cambiar a tema oscuro');
+                    botonTema.setAttribute('aria-pressed', String(oscuro));
+                });
             };
             actualizarTema(document.documentElement.dataset.theme);
-            botonTema.addEventListener('click', function () {
-                const tema = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark';
-                actualizarTema(tema);
-                try { localStorage.setItem('accn-theme', tema); } catch (_) { /* El tema sigue activo durante esta visita. */ }
+            botonesTema.forEach(function (botonTema) {
+                botonTema.addEventListener('click', function () {
+                    const tema = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark';
+                    actualizarTema(tema);
+                    try { localStorage.setItem('accn-theme', tema); } catch (_) { /* El tema sigue activo durante esta visita. */ }
+                });
             });
         })();
 
         function togglePasswordVisibility(inputId, btn) {
             const input = document.getElementById(inputId);
+            if (!input) return;
             const iconEye = btn.querySelector('.icon-eye');
             const iconEyeOff = btn.querySelector('.icon-eye-off');
 
             if (input.type === 'password') {
                 input.type = 'text';
-                iconEye.classList.add('hidden');
-                iconEyeOff.classList.remove('hidden');
+                if (iconEye) iconEye.classList.add('hidden');
+                if (iconEyeOff) iconEyeOff.classList.remove('hidden');
             } else {
                 input.type = 'password';
-                iconEye.classList.remove('hidden');
-                iconEyeOff.classList.add('hidden');
+                if (iconEye) iconEye.classList.remove('hidden');
+                if (iconEyeOff) iconEyeOff.classList.add('hidden');
             }
         }
-      
+
+        (function () {
+            const policyInputs = Array.from(document.querySelectorAll('[data-password-policy]'));
+            const matchingInputs = Array.from(document.querySelectorAll('[data-password-match]'));
+            const feedback = new Map();
+
+            function addFeedback(input) {
+                const message = document.createElement('p');
+                message.className = 'password-feedback mt-1 text-xs text-slate-500';
+                message.setAttribute('aria-live', 'polite');
+                message.id = input.id + '_feedback';
+                input.setAttribute('aria-describedby', message.id);
+                const anchor = input.closest('.relative') || input;
+                anchor.insertAdjacentElement('afterend', message);
+                feedback.set(input, message);
+            }
+
+            function validatePolicy(input) {
+                const value = input.value;
+                const optionalEmpty = !input.required && !value;
+                const issues = [];
+                if (value && value.length < 8) issues.push('8 caracteres');
+                if (value && !/[A-Za-zÁÉÍÓÚÜÑáéíóúüñ]/.test(value)) issues.push('una letra');
+                if (value && !/[0-9]/.test(value)) issues.push('un número');
+                if (value && !/[^A-Za-zÁÉÍÓÚÜÑáéíóúüñ0-9]/.test(value)) issues.push('un carácter especial');
+                const error = issues.length ? 'Debe incluir ' + issues.join(', ') + '.' : '';
+                input.setCustomValidity(error);
+                if (feedback.has(input)) {
+                    feedback.get(input).textContent = optionalEmpty
+                        ? 'Opcional. Si la cambias, usa 8 caracteres, una letra, un número y un carácter especial.'
+                        : error || (value ? 'La contraseña cumple los requisitos.' : 'Usa 8 caracteres, una letra, un número y un carácter especial.');
+                    feedback.get(input).classList.toggle('text-red-600', Boolean(error));
+                    feedback.get(input).classList.toggle('text-emerald-600', !error && Boolean(value));
+                }
+                return !error;
+            }
+
+            function validateMatch(input) {
+                const original = document.getElementById(input.dataset.passwordMatch);
+                if (!original) return;
+                const mismatch = Boolean(input.value) && input.value !== original.value;
+                input.setCustomValidity(mismatch ? 'Las contraseñas no coinciden.' : '');
+                if (feedback.has(input)) {
+                    feedback.get(input).textContent = mismatch ? 'Las contraseñas no coinciden.' : '';
+                    feedback.get(input).classList.toggle('text-red-600', mismatch);
+                }
+            }
+
+            policyInputs.forEach(addFeedback);
+            matchingInputs.forEach(addFeedback);
+            policyInputs.forEach(function (input) {
+                input.addEventListener('input', function () {
+                    validatePolicy(input);
+                    matchingInputs.forEach(validateMatch);
+                });
+                validatePolicy(input);
+            });
+            matchingInputs.forEach(function (input) {
+                input.addEventListener('input', function () { validateMatch(input); });
+                const original = document.getElementById(input.dataset.passwordMatch);
+                if (original) original.addEventListener('input', function () { validateMatch(input); });
+                validateMatch(input);
+            });
+        })();
     </script>
 </body>
 </html>
