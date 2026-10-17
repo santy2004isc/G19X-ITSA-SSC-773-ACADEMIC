@@ -17,7 +17,7 @@
     <link rel="stylesheet" href="{% static 'css/dist.css' %}">
 </head>
 <body data-page="{{ request.resolver_match.url_name|default:'' }}" class="bg-slate-50 min-h-screen text-slate-800 flex flex-col font-sans">
-    <button id="themeToggle" type="button" class="{% if request.resolver_match.url_name == 'login' %}theme-toggle{% else %}hidden{% endif %}" aria-label="Cambiar a tema oscuro" aria-pressed="false" title="Cambiar tema">Tema oscuro</button>
+   
     {% include 'includes/messages.html' %}
 
     {% block content %}{% endblock %}

@@ -16,7 +16,7 @@
         </div>
     </header>
 
-    <main class="flex-1 max-w-7xl w-full mx-auto p-6 space-y-6">
+    <main class="flex-1 w-full mx-auto p-6 space-y-6">
         <div class="flex items-center justify-between">
             <h2 class="text-xl font-bold text-slate-800">Gestión de Cuentas</h2>
             <a href="{% url 'admin_crear_usuario' %}" class="bg-blue-600 hover:bg-blue-700 text-white font-medium text-sm px-4 py-2.5 rounded-lg shadow transition">
@@ -24,7 +24,7 @@
             </a>
         </div>
 
-        <div class="table-scroll bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden" role="region" aria-label="Tabla de usuarios; desliza horizontalmente para ver todas las columnas" tabindex="0">
+        <div class="table-scroll bg-white rounded-xl border border-slate-200 overflow-hidden" role="region" aria-label="Tabla de usuarios; desliza horizontalmente para ver todas las columnas" tabindex="0">
             <p class="table-scroll-hint">Desliza horizontalmente para consultar todas las columnas.</p>
             <table class="w-full text-left text-sm text-slate-600">
                 <thead class="bg-slate-50 text-slate-700 uppercase text-xs border-b border-slate-200">

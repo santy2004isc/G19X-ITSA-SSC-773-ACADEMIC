@@ -3,79 +3,80 @@
 {% block title %}Chat Normativo - Gestor{% endblock %}
 
 {% block content %}
-<div class="chat-layout gestor-chat flex h-screen bg-slate-900 text-slate-100 font-sans overflow-hidden">
+<div class="chat-layout gestor-chat flex h-screen bg-slate-100 overflow-hidden">
 
     <!-- SIDEBAR -->
-    <aside id="sidebar" class="w-72 bg-slate-950 border-r border-slate-800 flex flex-col justify-between flex-shrink-0 transition-all duration-300 ease-in-out">
-        <div class="p-4 flex flex-col space-y-4">
-            <div class="flex items-center justify-between">
-                <span class="text-xs font-bold uppercase tracking-wider text-amber-400 bg-amber-950/80 px-2.5 py-1 rounded-full border border-amber-800/50">
-                    Gestor
-                </span>
-                <span class="text-[10px] text-slate-400 bg-slate-800 px-2 py-0.5 rounded">Consultas Ilimitadas</span>
+    <aside id="sidebar" class="w-72 bg-slate-900 text-slate-300 flex flex-col border-r border-slate-800 flex-shrink-0 transition-all duration-300 ease-in-out">
+        <div class="p-4 border-b border-slate-800 flex items-center justify-between">
+            <div class="flex items-center space-x-2">
+                <div class="w-8 h-8 bg-blue-600 text-white font-bold flex items-center justify-center rounded-lg text-xs shadow">ACCN</div>
+                <div>
+                    <span class="block font-bold text-white text-sm">Agente Legal</span>
+                    <span class="gestor-badge text-[10px] font-semibold uppercase tracking-wider text-amber-400">Gestor</span>
+                </div>
             </div>
-            <!-- Botón Nueva Conversación -->
-            <form action="{% url 'gestor_crear_conversacion' %}" method="POST">
+            <form method="post" action="{% url 'gestor_crear_conversacion' %}">
                 {% csrf_token %}
-                <button type="submit" class="w-full bg-blue-600 hover:bg-blue-500 text-white font-medium text-sm py-2 px-4 rounded-lg shadow-md transition flex items-center justify-center space-x-2">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
-                    <span>Nueva Consulta</span>
+                <button type="submit" title="Nueva Consulta" class="p-1.5 hover:bg-slate-800 text-slate-300 hover:text-white rounded-lg transition">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
                 </button>
             </form>
-
-            <!-- Historial -->
-            <div class="mt-4 flex-1 overflow-y-auto space-y-1 max-h-[calc(100vh-220px)] pr-1">
-                {% for conv in conversaciones %}
-                    <div class="group flex items-center justify-between p-2.5 rounded-lg text-sm transition {% if conversacion_actual and conversacion_actual.id == conv.id %}bg-slate-800 text-white font-medium border-l-4 border-amber-500{% else %}text-slate-400 hover:bg-slate-900 hover:text-slate-200{% endif %}">
-                        <a href="{% url 'gestor_chat_conversacion' conv.id %}" class="truncate flex-1">
-                            {{ conv.titulo }}
-                        </a>
-                        <form action="{% url 'gestor_eliminar_conversacion' conv.id %}" method="POST" class="opacity-0 group-hover:opacity-100 transition">
-                            {% csrf_token %}
-                            <button type="submit" onclick="return confirm('¿Eliminar esta conversación?')" class="text-slate-500 hover:text-red-400 p-1">
-                                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
-                            </button>
-                        </form>
-                    </div>
-                {% empty %}
-                    <p class="text-xs text-slate-500 text-center py-4">Sin conversaciones recientes.</p>
-                {% endfor %}
-            </div>
         </div>
 
-        <!-- Footer Sidebar -->
-        <div class="p-3 border-t border-slate-800 bg-slate-950 flex flex-col space-y-2">
-            <a href="{% url 'gestor_dashboard' %}" class="w-full bg-slate-800 hover:bg-slate-700 text-blue-300 text-xs font-medium text-center py-2 rounded-lg border border-slate-700 transition flex items-center justify-center space-x-1">
-                <span>📚 Ir a Gestión de Leyes</span>
+        <div class="px-4 py-2 bg-slate-950/60 border-b border-slate-800 flex items-center justify-between text-[11px]">
+            <span class="text-slate-400">Acceso:</span>
+            <span class="font-semibold text-blue-400">Consultas ilimitadas</span>
+        </div>
+
+        <div class="flex-1 overflow-y-auto p-3 space-y-1">
+            <p class="text-xs font-semibold text-slate-500 uppercase px-2 mb-2">Consultas Registradas</p>
+            {% for conv in conversaciones %}
+            <div class="group flex items-center justify-between rounded-lg px-3 py-2 text-xs font-medium transition {% if conversacion_actual and conversacion_actual.id == conv.id %}bg-blue-600 text-white{% else %}hover:bg-slate-800 text-slate-400 hover:text-slate-200{% endif %}">
+                <a href="{% url 'gestor_chat_conversacion' conv.id %}" class="flex-1 truncate mr-2">{{ conv.titulo }}</a>
+                <form action="{% url 'gestor_eliminar_conversacion' conv.id %}" method="POST" class="opacity-0 group-hover:opacity-100 transition">
+                    {% csrf_token %}
+                    <button type="submit" onclick="return confirm('¿Eliminar esta conversación?')" class="text-slate-500 hover:text-red-400 p-1">
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                    </button>
+                </form>
+            </div>
+            {% empty %}
+            <p class="text-xs text-slate-500 text-center py-4">Sin conversaciones recientes.</p>
+            {% endfor %}
+        </div>
+
+        <div class="p-3 border-t border-slate-800 bg-slate-950/50 space-y-2">
+            <a href="{% url 'gestor_dashboard' %}" class="gestor-management-link block rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-center text-xs font-medium transition hover:bg-slate-700">
+                📚 Ir a Gestión de Leyes
             </a>
-            <div class="flex items-center justify-between pt-1">
-                <span class="text-xs text-slate-400 truncate">{{ request.user.nombre }} {{ request.user.apellido }}</span>
-                <a href="{% url 'logout' %}" class="text-xs text-red-400 hover:underline">Salir</a>
+            <div class="flex items-center justify-between">
+                <a href="{% url 'gestor_perfil' %}" class="truncate text-xs font-medium text-slate-300 hover:text-white">{{ request.user.nombre }} {{ request.user.apellido }}</a>
+                <a href="{% url 'logout' %}" title="Cerrar Sesión" class="text-slate-500 hover:text-red-400 p-1.5 transition">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/></svg>
+                </a>
             </div>
         </div>
     </aside>
 
-    <!-- ÁREA PRINCIPAL (Se agrega min-w-0 para evitar desbordamiento por flex layout) -->
-    <main class="flex-1 flex flex-col bg-slate-900 justify-between min-w-0">
+    <main class="flex-1 flex flex-col bg-white min-w-0">
         
-        <header class="p-4 border-b border-slate-800 flex items-center justify-between bg-slate-900/80 backdrop-blur">
+        <header class="border-b border-slate-200 px-6 py-3.5 flex items-center justify-between bg-white shadow-sm">
             <div class="flex items-center space-x-3">
-                <!-- Botón para ocultar/mostrar la barra lateral -->
-                <button id="toggleSidebar" class="p-1.5 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition focus:outline-none" title="Ocultar/Mostrar menú">
+                <button id="toggleSidebar" class="p-1.5 text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-lg transition focus:outline-none" title="Ocultar/Mostrar menú">
                     <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/>
                     </svg>
                 </button>
                 <div>
-                    <h1 class="text-base font-semibold text-white">Consulta Normativa General</h1>
-                    <p class="text-xs text-slate-400">Consultas generadas a partir del contexto de Leyes Federales Vigentes.</p>
+                    <h2 class="font-bold text-slate-800 text-sm">Consulta Normativa General</h2>
+                    <p class="text-xs text-slate-400">Consultas generadas a partir de Leyes Federales vigentes.</p>
                 </div>
             </div>
             <button type="button" data-theme-toggle class="theme-toggle-inline" aria-label="Cambiar a tema oscuro" aria-pressed="false">Tema oscuro</button>
         </header>
 
         <!-- Contenedor de Mensajes -->
-        <div id="chatContainer" class="flex-1 overflow-y-auto p-6 space-y-4">
+        <div id="chatContainer" class="flex-1 overflow-y-auto p-6 space-y-4 bg-slate-50/50">
             {% for msg in mensajes %}
                 {% if msg.emisor == 'USUARIO' %}
                     <div class="flex justify-end">
@@ -86,22 +87,22 @@
                     </div>
                 {% else %}
                     <div class="flex justify-start">
-                        <div class="max-w-2xl bg-slate-800 border border-slate-700 text-slate-200 p-4 rounded-2xl rounded-tl-none text-sm space-y-2 shadow break-words overflow-hidden">
+                        <div class="max-w-2xl bg-white border border-slate-200 text-slate-800 p-4 rounded-2xl rounded-tl-none text-sm space-y-2 shadow-sm break-words overflow-hidden">
                             <p class="whitespace-pre-wrap break-words">{{ msg.contenido_texto }}</p>
                             
                             {% if msg.citas %}
-                                <div class="mt-2 pt-2 border-t border-slate-700/60 text-xs text-amber-300/90 space-y-1">
-                                    <span class="font-semibold block text-[11px] text-amber-400">Leyes Consultadas:</span>
+                                <div class="mt-2 pt-2 border-t border-slate-200 text-xs text-slate-600 space-y-1">
+                                    <span class="font-semibold block text-[11px] text-blue-700">Leyes Consultadas:</span>
                                     {% for cita in msg.citas %}
-                                        <div class="bg-slate-900/50 p-1.5 rounded border border-slate-700/40 break-words">
+                                        <div class="bg-slate-50 p-1.5 rounded border border-slate-200 break-words">
                                             📜 {{ cita.ley }} {% if cita.siglas %}({{ cita.siglas }}){% endif %} - Reforma: {{ cita.fecha_reforma }}
                                         </div>
                                     {% endfor %}
                                 </div>
                             {% endif %}
 
-                            <div class="flex items-center justify-between pt-1 text-[10px] text-slate-400 border-t border-slate-700/40">
-                                <span>Proveedor: <strong class="text-slate-300">{{ msg.get_proveedor_ia_display|default:msg.proveedor_ia }}</strong></span>
+                            <div class="flex items-center justify-between pt-1 text-[10px] text-slate-400 border-t border-slate-200">
+                                <span>Proveedor: <strong class="text-slate-600">{{ msg.get_proveedor_ia_display|default:msg.proveedor_ia }}</strong></span>
                                 {% if msg.conmutado_fallback %}
                                     <span class="text-amber-400 font-semibold">⚡ Fallback Activo</span>
                                 {% endif %}
@@ -116,11 +117,11 @@
                 </div>
             {% endfor %}
             <div id="respuestaPendiente" class="hidden" aria-live="polite">
-                <div class="inline-flex max-w-full items-center gap-3 rounded-2xl rounded-tl-none border border-slate-700 bg-slate-800 px-4 py-3 text-sm text-slate-300 shadow">
+                <div class="inline-flex max-w-full items-center gap-3 rounded-2xl rounded-tl-none border border-slate-200 bg-white px-4 py-3 text-sm text-slate-600 shadow-sm">
                     <span class="flex shrink-0 gap-1" aria-hidden="true">
-                        <span class="h-2 w-2 animate-bounce rounded-full bg-amber-400"></span>
-                        <span class="h-2 w-2 animate-bounce rounded-full bg-amber-400 [animation-delay:150ms]"></span>
-                        <span class="h-2 w-2 animate-bounce rounded-full bg-amber-400 [animation-delay:300ms]"></span>
+                        <span class="h-2 w-2 animate-bounce rounded-full bg-blue-500"></span>
+                        <span class="h-2 w-2 animate-bounce rounded-full bg-blue-500 [animation-delay:150ms]"></span>
+                        <span class="h-2 w-2 animate-bounce rounded-full bg-blue-500 [animation-delay:300ms]"></span>
                     </span>
                     <span>Buscando en las leyes y redactando respuesta...</span>
                 </div>
@@ -128,11 +129,11 @@
         </div>
 
         <!-- Formulario -->
-        <footer class="p-4 border-t border-slate-800 bg-slate-950">
-            <form id="chatForm" class="flex space-x-3">
+        <footer class="p-4 border-t border-slate-200 bg-white">
+            <form id="chatForm" class="flex items-center space-x-3">
                 <input type="hidden" id="conversacionId" value="{{ conversacion_actual.id|default:'' }}">
-                <textarea id="mensajeInput" rows="1" placeholder="Escribe tu consulta sobre legislación vigente..." class="flex-1 bg-slate-900 border border-slate-700 text-white text-sm rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-amber-500 resize-none"></textarea>
-                <button type="submit" id="btnEnviar" class="bg-amber-600 hover:bg-amber-500 text-slate-950 font-bold px-5 py-3 rounded-xl transition flex items-center justify-center">
+                <textarea id="mensajeInput" rows="1" placeholder="Escribe tu consulta sobre legislación vigente..." class="flex-1 min-h-[3rem] bg-slate-100 border border-slate-200 text-slate-800 text-sm rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500 resize-y"></textarea>
+                <button type="submit" id="btnEnviar" class="bg-blue-600 hover:bg-blue-700 text-white font-semibold text-sm px-5 py-3 rounded-xl shadow transition flex items-center justify-center">
                     Enviar
                 </button>
             </form>
@@ -172,7 +173,7 @@
         const celdas = linea => linea.trim().replace(/^\|/, '').replace(/\|$/, '').split('|').map(celda => celda.trim());
         const esSeparadorTabla = linea => celdas(linea).length > 1 && celdas(linea).every(celda => /^:?-{3,}:?$/.test(celda));
         const inline = valor => escaparHtml(valor)
-            .replace(/`([^`]+)`/g, '<code class="rounded bg-slate-900/70 px-1 py-0.5 font-mono text-amber-200">$1</code>')
+            .replace(/`([^`]+)`/g, '<code class="rounded bg-slate-100 px-1 py-0.5 font-mono text-blue-800">$1</code>')
             .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
             .replace(/__(.+?)__/g, '<strong>$1</strong>')
             .replace(/(^|[^*])\*([^*\n]+)\*(?!\*)/g, '$1<em>$2</em>');
@@ -184,13 +185,13 @@
                 i += 2;
                 const filas = [];
                 while (i < lineas.length && lineas[i].includes('|') && lineas[i].trim()) filas.push(celdas(lineas[i++]));
-                salida.push(`<div class="my-3 max-w-full overflow-x-auto rounded-lg border border-slate-700"><table class="w-full border-collapse text-left text-xs"><thead class="bg-slate-900 text-amber-300"><tr>${encabezados.map(celda => `<th class="border-b border-slate-700 px-3 py-2 font-semibold">${inline(celda)}</th>`).join('')}</tr></thead><tbody>${filas.map(fila => `<tr class="odd:bg-slate-800 even:bg-slate-900/50">${encabezados.map((_, indice) => `<td class="border-t border-slate-700/70 px-3 py-2 align-top">${inline(fila[indice] || '')}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`);
+                salida.push(`<div class="my-3 max-w-full overflow-x-auto rounded-lg border border-slate-200"><table class="w-full border-collapse text-left text-xs"><thead class="bg-slate-100 text-slate-700"><tr>${encabezados.map(celda => `<th class="border-b border-slate-200 px-3 py-2 font-semibold">${inline(celda)}</th>`).join('')}</tr></thead><tbody>${filas.map(fila => `<tr class="odd:bg-white even:bg-slate-50">${encabezados.map((_, indice) => `<td class="border-t border-slate-100 px-3 py-2 align-top">${inline(fila[indice] || '')}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`);
                 continue;
             }
             const heading = lineas[i].match(/^(#{1,3})\s+(.+)$/);
             if (heading) {
                 const nivel = heading[1].length;
-                salida.push(`<h${nivel + 2} class="mb-1 mt-3 font-bold text-white">${inline(heading[2])}</h${nivel + 2}>`);
+                salida.push(`<h${nivel + 2} class="mb-1 mt-3 font-bold text-slate-900">${inline(heading[2])}</h${nivel + 2}>`);
                 i++;
                 continue;
             }
@@ -284,18 +285,18 @@
 
         let citasHtml = '';
         if (resp.citas && resp.citas.length > 0) {
-            citasHtml = `<div class="mt-2 pt-2 border-t border-slate-700/60 text-xs text-amber-300/90 space-y-1">
-                <span class="font-semibold block text-[11px] text-amber-400">Leyes Consultadas:</span>
-                ${resp.citas.map(c => `<div class="bg-slate-900/50 p-1.5 rounded border border-slate-700/40 break-words">📜 ${escaparHtml(c.ley)} ${c.siglas ? '('+escaparHtml(c.siglas)+')' : ''} - Reforma: ${escaparHtml(c.fecha_reforma)}</div>`).join('')}
+            citasHtml = `<div class="mt-2 pt-2 border-t border-slate-200 text-xs text-slate-600 space-y-1">
+                <span class="font-semibold block text-[11px] text-blue-700">Leyes Consultadas:</span>
+                ${resp.citas.map(c => `<div class="bg-slate-50 p-1.5 rounded border border-slate-200 break-words">📜 ${escaparHtml(c.ley)} ${c.siglas ? '('+escaparHtml(c.siglas)+')' : ''} - Reforma: ${escaparHtml(c.fecha_reforma)}</div>`).join('')}
             </div>`;
         }
 
         div.innerHTML = `
-            <div class="max-w-2xl bg-slate-800 border border-slate-700 text-slate-200 p-4 rounded-2xl rounded-tl-none text-sm space-y-2 shadow break-words overflow-hidden">
+            <div class="max-w-2xl bg-white border border-slate-200 text-slate-800 p-4 rounded-2xl rounded-tl-none text-sm space-y-2 shadow-sm break-words overflow-hidden">
                 <div class="markdown-content leading-relaxed break-words">${renderizarMarkdown(resp.contenido)}</div>
                 ${citasHtml}
-                <div class="flex items-center justify-between pt-1 text-[10px] text-slate-400 border-t border-slate-700/40">
-                    <span>Proveedor: <strong class="text-slate-300">${resp.proveedor}</strong></span>
+                <div class="flex items-center justify-between pt-1 text-[10px] text-slate-400 border-t border-slate-200">
+                    <span>Proveedor: <strong class="text-slate-600">${resp.proveedor}</strong></span>
                     ${resp.conmutado ? '<span class="text-amber-400 font-semibold">⚡ Fallback Activo</span>' : ''}
                     <span>${resp.fecha}</span>
                 </div>
