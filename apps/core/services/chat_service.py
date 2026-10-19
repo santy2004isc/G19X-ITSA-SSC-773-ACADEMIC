@@ -1,5 +1,7 @@
 import os
+import re
 import time
+import unicodedata
 import groq
 from google import genai
 from google.genai.errors import APIError
@@ -17,6 +19,86 @@ MENSAJE_SATURACION_APIS = (
     "temporalmente saturados debido a la alta demanda en los proveedores externos de IA. "
     "Por favor, intenta formular tu pregunta nuevamente en unos momentos."
 )
+
+MAX_LONGITUD_MENSAJE = 4000
+
+_INDICIOS_JURIDICOS = re.compile(
+    r"\b(?:"
+    r"ley(?:es)?|juridic[oa]s?|derech[oa]s?|articul[oa]s?|constitucion|"
+    r"codigo|codigos|reglamento|norma(?:s)?|decret[oa]s?|reforma|"
+    r"demanda(?:r)?|juicio|denuncia|delito|abogad[oa]|juez|juzgado|"
+    r"contrato|arrendamiento|renta|despedir|despid(?:o|io|ieron)|patron|jefe|"
+    r"salario|sueldo|liquidacion|finiquito|aguinaldo|vacaciones|"
+    r"horas extra|pension|divorcio|custodia|alimentos|impuesto|multa|"
+    r"amparo|autoridad|derechos|"
+    r"obligacion(?:es)?|herencia|fraude|robo|detencion|detuvieron|"
+    r"me deben|no me pagan|no me paga|me quieren cobrar|me corrieron|"
+    r"me demandaron|me demandan|me quitaron|me paga|me pagan|me despidieron"
+    r")\b"
+)
+_MENSAJE_CORTESIA = re.compile(
+    r"^(?:gracias|muchas gracias|te agradezco|entendido|"
+    r"de acuerdo|perfecto|ok|okay|adios|hasta luego|nos vemos)$"
+)
+
+
+def clasificar_mensaje(pregunta_usuario):
+    """Clasifica mensajes sencillos sin consumir IA ni consultar la base normativa."""
+    normalizado = unicodedata.normalize("NFKD", pregunta_usuario.lower())
+    normalizado = "".join(
+        caracter for caracter in normalizado
+        if not unicodedata.combining(caracter)
+    )
+    normalizado = re.sub(r"[^\w\s]", " ", normalizado)
+    normalizado = " ".join(normalizado.split())
+
+    if re.fullmatch(
+        r"(?:hola|buenas(?: tardes| dias| noches)?|buenos dias|buen dia|"
+        r"saludos|que tal|hey|holi)(?: (?:hola|buenas(?: tardes| dias| noches)?|"
+        r"buenos dias|buen dia|saludos|que tal|hey|holi))?"
+        r"(?: (?:que tal|como estas|espero que estes bien))?",
+        normalizado,
+    ):
+        return "saludo"
+
+    if _INDICIOS_JURIDICOS.search(normalizado):
+        return "juridico"
+
+    if re.match(
+        r"^(?:no es lo que dije|no es lo que te dije|eso no es lo que dije|"
+        r"eso no fue lo que pregunte|no fue eso lo que pregunte|"
+        r"no era lo que pregunte|no dije eso|te dije otra cosa|"
+        r"no fue eso|no me entendiste|me entendiste mal|"
+        r"no era eso|no es eso|eso no|no,? eso no|"
+        r"eso no responde mi pregunta)",
+        normalizado,
+    ):
+        return "aclaracion"
+
+    if _MENSAJE_CORTESIA.fullmatch(normalizado):
+        return "cortesia"
+
+    return "no_juridico"
+
+
+def respuesta_sin_consulta_normativa(tipo_mensaje):
+    if tipo_mensaje == "saludo":
+        return (
+            "¡Hola! ¿En qué puedo ayudarte? Puedo orientarte sobre leyes federales "
+            "de México; cuéntame tu duda jurídica."
+        )
+    if tipo_mensaje == "aclaracion":
+        return (
+            "Entiendo, disculpa la confusión. ¿Podrías explicar de nuevo qué necesitas "
+            "o qué parte debo corregir?"
+        )
+    if tipo_mensaje == "cortesia":
+        return "¡Con gusto! Si tienes otra duda sobre leyes federales de México, aquí estoy para ayudarte."
+    return (
+        "Puedo ayudarte con dudas sobre leyes federales de México. Cuéntame qué "
+        "situación jurídica quieres consultar y te orientaré."
+    )
+
 
 def get_groq_client():
     """

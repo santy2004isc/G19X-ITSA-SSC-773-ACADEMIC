@@ -98,7 +98,7 @@
                             <div class="flex items-center justify-between border-b border-slate-100 pb-1.5 text-xs">
                                 <span class="text-blue-600 font-semibold flex items-center space-x-1">
                                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
-                                    <span>Respuesta Legal</span>
+                                    <span>Respuesta del asistente</span>
                                 </span>
                                 {% if msg.proveedor_ia %}
                                 <span class="text-[10px] text-slate-400">IA: {{ msg.proveedor_ia }}{% if msg.conmutado_fallback %} (Fallback){% endif %}</span>
@@ -137,14 +137,14 @@
         <!-- Indicador -->
         <div id="thinkingIndicator" class="hidden px-6 py-2 bg-slate-50 border-t border-slate-100 flex items-center space-x-2 text-xs text-slate-500" aria-live="polite">
             <svg class="w-4 h-4 text-blue-600 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
-            <span>Buscando en la legislación y preparando una respuesta...</span>
+            <span>Preparando una respuesta...</span>
         </div>
 
         <!-- Formulario Chat -->
         <footer class="p-4 border-t border-slate-200 bg-white">
             <form id="chatForm" class="flex items-center space-x-3">
                 <input type="hidden" id="conversacionId" value="{{ conversacion_actual.id|default:'' }}">
-                <input type="text" id="chatInput" placeholder="Escriba su pregunta legal aquí..." class="flex-1 px-4 py-3 bg-slate-100 text-slate-800 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 focus:bg-white focus:outline-none transition">
+                <input type="text" id="chatInput" maxlength="4000" placeholder="Escriba su mensaje o pregunta legal..." class="flex-1 px-4 py-3 bg-slate-100 text-slate-800 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 focus:bg-white focus:outline-none transition">
                 <button type="submit" id="btnEnviar" class="bg-blue-600 hover:bg-blue-700 text-white font-semibold px-5 py-3 rounded-xl text-sm shadow transition">
                     Enviar
                 </button>
@@ -305,9 +305,9 @@
                             <div class="flex items-center justify-between border-b border-slate-100 pb-1.5 text-xs">
                                 <span class="text-blue-600 font-semibold flex items-center space-x-1">
                                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
-                                    <span>Respuesta Legal</span>
+                                    <span>Respuesta del asistente</span>
                                 </span>
-                                <span class="text-[10px] text-slate-400">IA: ${data.respuesta.proveedor}${data.respuesta.conmutado ? ' (Fallback)' : ''}</span>
+                                <span class="text-[10px] text-slate-400">${data.respuesta.proveedor ? 'IA: ' + escapeHtml(data.respuesta.proveedor) + (data.respuesta.conmutado ? ' (Fallback)' : '') : 'Asistente'}</span>
                             </div>
                             <div class="markdown-content leading-relaxed break-words">${renderizarMarkdown(data.respuesta.contenido)}</div>
                             ${citasHtml}

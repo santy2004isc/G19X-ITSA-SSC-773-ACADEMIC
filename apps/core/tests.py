@@ -18,6 +18,7 @@ from .services.pdf_processor import (
     extraer_metadatos_primera_pagina,
 )
 from .services.chat_service import (
+    clasificar_mensaje,
     generar_respuesta_ia_con_fallback,
     MENSAJE_SATURACION_APIS,
 )
@@ -380,6 +381,98 @@ class PDFProcessorTest(TestCase):
         self.assertNotEqual(hash_archivo_a, hash_archivo_b)
         self.assertEqual(hash_contenido_a, hash_contenido_b)
         self.assertEqual(chunks_a, chunks_b)
+
+
+class ChatIntentTest(TestCase):
+    def setUp(self):
+        self.usuario = Usuario.objects.create_user(
+            correo_electronico='chat-intent@test.com',
+            password='Password123!',
+            nombre='Usuario',
+            apellido='Registrado',
+            rol=Usuario.Rol.REGISTRADO,
+        )
+        self.gestor = Usuario.objects.create_user(
+            correo_electronico='gestor-intent@test.com',
+            password='Password123!',
+            nombre='Usuario',
+            apellido='Gestor',
+            rol=Usuario.Rol.GESTOR,
+        )
+        self.client = Client()
+
+    def test_clasifica_saludos_aclaraciones_y_consultas_juridicas(self):
+        self.assertEqual(clasificar_mensaje('Hola, buenas tardes'), 'saludo')
+        self.assertEqual(clasificar_mensaje('No es lo que dije'), 'aclaracion')
+        self.assertEqual(clasificar_mensaje('Gracias'), 'cortesia')
+        self.assertEqual(
+            clasificar_mensaje('¿Qué derechos tengo si me despidieron?'),
+            'juridico',
+        )
+        self.assertEqual(clasificar_mensaje('¿Cuánto cuesta un boleto?'), 'no_juridico')
+
+    @patch('apps.core.views.usuario.chat_views.generar_respuesta_ia_con_fallback')
+    @patch('apps.core.views.usuario.chat_views.buscar_contexto_normativo')
+    def test_saludo_usuario_no_consulta_leyes_ni_usa_ia(self, mock_buscar, mock_generar):
+        self.client.force_login(self.usuario)
+        response = self.client.post(
+            reverse('chat_api_enviar'),
+            data='{"mensaje":"Hola, buenas tardes"}',
+            content_type='application/json',
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIsNone(response.json()['respuesta']['proveedor'])
+        self.assertEqual(response.json()['respuesta']['citas'], [])
+        self.assertIn('¡Hola!', response.json()['respuesta']['contenido'])
+        mock_buscar.assert_not_called()
+        mock_generar.assert_not_called()
+
+    @patch('apps.core.views.gestor.chat_gestor_views.generar_respuesta_ia_con_fallback')
+    @patch('apps.core.views.gestor.chat_gestor_views.buscar_contexto_normativo')
+    def test_mensaje_ajeno_del_gestor_no_consulta_leyes_ni_usa_ia(self, mock_buscar, mock_generar):
+        self.client.force_login(self.gestor)
+        response = self.client.post(
+            reverse('gestor_enviar_mensaje_api'),
+            data='{"mensaje":"¿Cuánto cuesta un boleto?"}',
+            content_type='application/json',
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIsNone(response.json()['respuesta']['proveedor'])
+        self.assertEqual(response.json()['respuesta']['citas'], [])
+        mock_buscar.assert_not_called()
+        mock_generar.assert_not_called()
+
+    def test_endpoint_rechaza_mensajes_invalidos_o_muy_largos(self):
+        self.client.force_login(self.usuario)
+        url = reverse('chat_api_enviar')
+
+        for body in (b'{', b'{"mensaje":12}', b'{"mensaje":"   "}', b'{"mensaje":"' + b'a' * 4001 + b'"}'):
+            response = self.client.generic(
+                'POST',
+                url,
+                data=body,
+                content_type='application/json',
+            )
+            self.assertEqual(response.status_code, 400)
+
+    @patch('apps.core.views.usuario.chat_views.generar_respuesta_ia_con_fallback')
+    @patch('apps.core.views.usuario.chat_views.buscar_contexto_normativo')
+    def test_consulta_juridica_si_consulta_la_base_normativa(self, mock_buscar, mock_generar):
+        mock_buscar.return_value = ('Contexto legal', [{'ley': 'Ley Federal', 'siglas': 'LF'}])
+        mock_generar.return_value = ('Respuesta jurídica', Mensaje.ProveedorIA.GROQ, False)
+        self.client.force_login(self.usuario)
+        response = self.client.post(
+            reverse('chat_api_enviar'),
+            data='{"mensaje":"¿Qué derechos tengo si me despidieron?"}',
+            content_type='application/json',
+        )
+
+        self.assertEqual(response.status_code, 200)
+        mock_buscar.assert_called_once_with('¿Qué derechos tengo si me despidieron?')
+        mock_generar.assert_called_once()
+        self.assertEqual(response.json()['respuesta']['citas'][0]['ley'], 'Ley Federal')
 
 
 class ChatServiceFallbackTest(TestCase):

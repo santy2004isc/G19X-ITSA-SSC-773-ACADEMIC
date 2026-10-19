@@ -1,4 +1,6 @@
 import json
+from uuid import UUID
+from django.http import Http404
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
 from django.http import JsonResponse
@@ -8,7 +10,13 @@ from django.contrib import messages
 
 from ...models import Usuario, Conversacion, Mensaje
 from ...decorators import roles_requeridos
-from ...services.chat_service import buscar_contexto_normativo, generar_respuesta_ia_con_fallback
+from ...services.chat_service import (
+    MAX_LONGITUD_MENSAJE,
+    buscar_contexto_normativo,
+    clasificar_mensaje,
+    generar_respuesta_ia_con_fallback,
+    respuesta_sin_consulta_normativa,
+)
 
 
 @login_required
@@ -66,19 +74,40 @@ def enviar_mensaje_gestor_api_view(request):
 
     try:
         data = json.loads(request.body)
-        pregunta = data.get('mensaje', '').strip()
-        conversacion_id = data.get('conversacion_id')
+    except (json.JSONDecodeError, UnicodeDecodeError):
+        return JsonResponse({'error': 'El cuerpo de la solicitud debe ser JSON válido.'}, status=400)
 
-        if not pregunta:
-            return JsonResponse({'error': 'El mensaje no puede estar vacío.'}, status=400)
+    if not isinstance(data, dict):
+        return JsonResponse({'error': 'La solicitud debe contener un objeto JSON.'}, status=400)
 
+    pregunta = data.get('mensaje')
+    if not isinstance(pregunta, str):
+        return JsonResponse({'error': 'El mensaje debe ser texto.'}, status=400)
+    pregunta = pregunta.strip()
+    if not pregunta:
+        return JsonResponse({'error': 'El mensaje no puede estar vacío.'}, status=400)
+    if len(pregunta) > MAX_LONGITUD_MENSAJE:
+        return JsonResponse({
+            'error': f'El mensaje no puede superar {MAX_LONGITUD_MENSAJE} caracteres.'
+        }, status=400)
+
+    conversacion_id = data.get('conversacion_id')
+    if conversacion_id is not None and not isinstance(conversacion_id, str):
+        return JsonResponse({'error': 'El identificador de conversación no es válido.'}, status=400)
+    if conversacion_id:
+        try:
+            conversacion_id = UUID(conversacion_id)
+        except ValueError:
+            return JsonResponse({'error': 'El identificador de conversación no es válido.'}, status=400)
+
+    try:
         if conversacion_id:
             conversacion = get_object_or_404(Conversacion, id=conversacion_id, usuario=usuario)
         else:
             titulo_auto = pregunta[:40] + ("..." if len(pregunta) > 40 else "")
             conversacion = Conversacion.objects.create(usuario=usuario, titulo=titulo_auto)
 
-        if conversacion.mensajes.count() == 0 and conversacion.titulo == "Consulta Normativa (Gestor)":
+        if not conversacion.mensajes.exists() and conversacion.titulo == "Consulta Normativa (Gestor)":
             conversacion.titulo = pregunta[:40] + ("..." if len(pregunta) > 40 else "")
             conversacion.save()
 
@@ -89,12 +118,19 @@ def enviar_mensaje_gestor_api_view(request):
                 contenido_texto=pregunta
             )
 
-            contexto, citas = buscar_contexto_normativo(pregunta)
-            respuesta_texto, proveedor_usado, conmutado = generar_respuesta_ia_con_fallback(
-                pregunta_usuario=pregunta,
-                contexto_normativo=contexto,
-                usuario=usuario
-            )
+            tipo_mensaje = clasificar_mensaje(pregunta)
+            if tipo_mensaje == 'juridico':
+                contexto, citas = buscar_contexto_normativo(pregunta)
+                respuesta_texto, proveedor_usado, conmutado = generar_respuesta_ia_con_fallback(
+                    pregunta_usuario=pregunta,
+                    contexto_normativo=contexto,
+                    usuario=usuario
+                )
+            else:
+                respuesta_texto = respuesta_sin_consulta_normativa(tipo_mensaje)
+                proveedor_usado = None
+                conmutado = False
+                citas = []
 
             msg_sistema = Mensaje.objects.create(
                 conversacion=conversacion,
@@ -125,5 +161,7 @@ def enviar_mensaje_gestor_api_view(request):
             }
         })
 
+    except Http404:
+        return JsonResponse({'error': 'La conversación no existe.'}, status=404)
     except Exception as e:
         return JsonResponse({'error': f'Error interno: {str(e)}'}, status=500)
