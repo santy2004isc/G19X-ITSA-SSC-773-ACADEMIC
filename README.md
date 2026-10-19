@@ -11,8 +11,7 @@
 
 ---
 
-## Características Principales
-
+## Características Principales dependencias
 * **Acceso por roles:** El middleware requiere inicio de sesión para las vistas privadas; login, registro y archivos estáticos son públicos. Las vistas restringen operaciones de administrador, gestor y usuario.
 * **Procesamiento de PDF sin archivo permanente:** El servicio procesa el archivo recibido y guarda metadatos y fragmentos vectoriales; la aplicación no conserva el PDF como documento consultable.
 * **Carga Completa y Deduplicación por Contenido:** Se extrae e indexa todo el texto legible del PDF. El sistema compara el hash del texto extraído, por lo que no vuelve a vectorizar una ley sin cambios aunque el archivo tenga metadatos PDF distintos; al editar una ley, conserva sus fragmentos existentes cuando el contenido no cambió. También conserva el hash binario para reconocer cargas históricas idénticas.
@@ -20,7 +19,7 @@
 * **Carga cómoda de archivos:** El gestor puede seleccionar el PDF desde el explorador o arrastrarlo y soltarlo en el formulario de carga o actualización.
 * **Embeddings Locales:** Generación de representaciones vectoriales densas de 768 dimensiones ejecutada en el backend local utilizando `sentence-transformers` (`paraphrase-multilingual-mpnet-base-v2`), eliminando costos y cuotas externas para la indexación.
 * **Índices Vectoriales HNSW en `pgvector`:** Índice `HnswIndex` (`vector_cosine_ops`) para recuperar candidatos por distancia coseno.
-* **Búsqueda Híbrida con Reciprocal Rank Fusion (RRF):** Fusión sinérgica entre la búsqueda semántica vectorial y el motor de *Full-Text Search* en español de PostgreSQL (`SearchVector` / `SearchQuery`), garantizando máxima precisión ante citas numéricas de artículos (ej. *"Artículo 123"*), siglas (*"LFT"*, *"CPEUM"*) o términos literales.
+* **Búsqueda Híbrida con Reciprocal Rank Fusion (RRF):** Fusión sinérgica entre la búsqueda semántica vectorial y el motor de *Full-Text Search* en español de PostgreSQL (`SearchVector` / `SearchQuery`), garantizando máxima precisión en las leyes, siglas (*"LFT"*, *"CPEUM"*) o términos literales.
 * **Control de cuota diaria:** Cuota configurable por usuario (50 mensajes diarios por defecto), con reinicio por fecha.
 * **Frontend Optimizado con Tailwind CSS Compilado:** Hoja de estilos estática minificada sin dependencias de CDN en tiempo de ejecución.
 * **Gestión de Roles Integrada:**
@@ -96,7 +95,7 @@
 ├── package.json                    # Scripts de compilación de frontend (Tailwind CLI)
 ├── tailwind.config.js              # Configuración de escaneo de clases Tailwind
 ├── README.md                       # Documentación del repositorio
-└── requirements.txt                # Dependencias fijadas de Python
+└── requirements.txt                # Dependencias de Python
 ```
 
 ---
@@ -224,7 +223,7 @@ flowchart TD
 
 1. **Autenticación:** Inicio de sesión con correo y contraseña. Los nuevos usuarios pueden registrarse mediante el formulario público con rol de *Usuario Registrado*.
 2. **Carga e Ingesta (Gestor):** Selecciona o arrastra un PDF de Ley Federal vigente. Se extrae el texto legible, se divide en fragmentos acotados con solapamiento y se indexa en `pgvector`. La deduplicación por hash del texto evita volver a procesar contenido sin cambios aunque cambien los metadatos del PDF. La aplicación no guarda el PDF como registro permanente.
-3. **Chat Jurídico (Usuario Registrado):** Realiza preguntas normativas en lenguaje natural. El motor híbrido localiza los artículos aplicables y el LLM responde citando la ley y su última fecha de reforma registrada.
+3. **Chat Jurídico (Usuario Registrado):** Realiza preguntas normativas en lenguaje natural. El motor híbrido localiza y el LLM responde citando la ley y su última fecha de reforma registrada.
 4. **Supervisión y Telemetría (Administrador):** Monitoreo en tiempo real de usuarios, estado de cuentas y registros de conmutación de APIs.
 
 ---
