@@ -148,6 +148,23 @@ def procesar_pdf_en_memoria(file_obj, chunk_size=1000, overlap=150):
     if not texto_limpio:
         raise ValidationError("El archivo PDF no contiene texto legible o es un documento escaneado como imagen.")
 
+    # Rechaza PDFs legibles que no parecen contener una norma jurídica antes
+    # de crear la ley o sus fragmentos en la base de datos.
+    indicadores_legales = (
+        r"\bley(?:es)?\b", r"\bc[oó]digo\b", r"\bconstituci[oó]n\b",
+        r"\breglamento\b", r"\bdecreto\b", r"\bart[ií]culo\b",
+        r"\bDiario Oficial\b", r"\bfracci[oó]n\b",
+    )
+    coincidencias_legales = sum(
+        bool(re.search(patron, texto_limpio, re.IGNORECASE))
+        for patron in indicadores_legales
+    )
+    if len(texto_limpio) < 250 or coincidencias_legales < 2:
+        raise ValidationError(
+            "El PDF no parece corresponder a una ley o documento normativo. "
+            "Verifica que sea una ley, código, reglamento o decreto legible."
+        )
+
     # El hash del contenido ignora cambios de metadatos del PDF y saltos de línea.
     hash_contenido = hashlib.sha256(texto_limpio.encode("utf-8")).hexdigest()
     chunks = _fragmentar_texto_estructurado(texto_limpio, chunk_size=chunk_size, overlap=overlap)

@@ -5,7 +5,8 @@ from django.contrib import messages
 from django.core.exceptions import ValidationError
 from django.http import JsonResponse
 from django.db import transaction
-from django.db.models import Q
+from django.db.models import Q, Func, Value
+from django.db.models.functions import Lower
 from django.utils import timezone
 from django.views.decorators.http import require_POST
 
@@ -71,6 +72,9 @@ def previsualizar_documento_view(request):
         return JsonResponse({"error": "El PDF no puede exceder los 50 MB."}, status=400)
 
     try:
+        archivo.seek(0)
+        procesar_pdf_en_memoria(archivo)
+        archivo.seek(0)
         metadatos = extraer_metadatos_primera_pagina(archivo)
     except ValidationError as error:
         return JsonResponse({"error": str(error)}, status=400)
@@ -89,8 +93,17 @@ def gestor_dashboard_view(request):
     leyes = LeyFederal.objects.select_related('usuario', 'usuario_modificacion').all()
 
     if query:
-        leyes = leyes.filter(
-            Q(nombre__icontains=query) | Q(siglas__icontains=query)
+        # PostgreSQL unaccent permite encontrar, por ejemplo, "Constitucion"
+        # aunque el nombre almacenado contenga "Constitución".
+        class Unaccent(Func):
+            function = 'unaccent'
+            template = "%(function)s(%(expressions)s)"
+        leyes = leyes.annotate(
+            nombre_sin_acentos=Unaccent(Lower('nombre')),
+            siglas_sin_acentos=Unaccent(Lower('siglas')),
+        ).filter(
+            Q(nombre_sin_acentos__contains=Unaccent(Value(query.lower()))) |
+            Q(siglas_sin_acentos__contains=Unaccent(Value(query.lower())))
         )
 
     leyes = leyes.order_by('-fecha_creacion')
