@@ -7,25 +7,29 @@ from sentence_transformers import SentenceTransformer
 
 # Cargador perezoso para el modelo sentence-transformers (768 dimensiones) (RF-2.3)
 _embedding_model = None
+_PATRON_ENCABEZADO_ARTICULO = (
+    r"^[ \t]*Art[ií]culo[ \t]+(\d+)([oº°])?(?:[ \t]+(Bis|Ter|Quáter))?(?!\w)"
+)
 _ENCABEZADO_ARTICULO = re.compile(
-    r"\bArt[ií]culo\s+(\d+)(?:\s+(Bis))?\b",
-    re.IGNORECASE,
+    _PATRON_ENCABEZADO_ARTICULO,
+    re.IGNORECASE | re.MULTILINE,
 )
 _INICIO_ARTICULO = re.compile(
-    r"(?=\bArt[ií]culo\s+\d+(?:\s+Bis)?\b)",
-    re.IGNORECASE,
+    r"(?=^[ \t]*Art[ií]culo[ \t]+\d+(?:[oº°])?(?:[ \t]+(?:Bis|Ter|Quáter))?(?!\w))",
+    re.IGNORECASE | re.MULTILINE,
 )
 
 
 def extraer_articulo_fragmento(texto):
-    """Obtiene el artículo más reciente mencionado en un fragmento normativo."""
+    """Obtiene el artículo del encabezado más reciente en un fragmento normativo."""
     encabezados = list(_ENCABEZADO_ARTICULO.finditer(texto))
     if not encabezados:
         return ""
 
     encabezado = encabezados[-1]
-    numero, bis = encabezado.groups()
-    return f"{numero} Bis" if bis else numero
+    numero, ordinal, modificador = encabezado.groups()
+    identificador = f"{numero}{ordinal or ''}"
+    return f"{identificador} {modificador.title()}" if modificador else identificador
 
 
 def get_embedding_model():

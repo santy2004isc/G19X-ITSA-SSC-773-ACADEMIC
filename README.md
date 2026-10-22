@@ -6,7 +6,7 @@
 [![Django](https://img.shields.io/badge/Django-5.x-green.svg)](https://www.djangoproject.com/)
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16%20%2B%20pgvector-blue.svg)](https://github.com/pgvector/pgvector)
 [![TailwindCSS](https://img.shields.io/badge/Tailwind-CSS%20Standalone-38bdf8.svg)](https://tailwindcss.com/)
-[![Tests](https://img.shields.io/badge/Tests-24%20casos-informational.svg)]()
+[![Tests](https://img.shields.io/badge/Tests-35%20casos-informational.svg)]()
 [![Docker](https://img.shields.io/badge/Docker-Ready-2496ed.svg)](https://www.docker.com/)
 
 ---
@@ -21,11 +21,16 @@
 * **Índices Vectoriales HNSW en `pgvector`:** Índice `HnswIndex` (`vector_cosine_ops`) para recuperar candidatos por distancia coseno.
 * **Búsqueda Híbrida con Reciprocal Rank Fusion (RRF):** Fusión sinérgica entre la búsqueda semántica vectorial y el motor de *Full-Text Search* en español de PostgreSQL (`SearchVector` / `SearchQuery`), garantizando máxima precisión en las leyes, siglas (*"LFT"*, *"CPEUM"*) o términos literales.
 * **Control de cuota diaria:** Cuota configurable por usuario (50 mensajes diarios por defecto), con reinicio por fecha.
+* **Clasificador de saludos:** Los saludos y mensajes breves de cortesía reciben una respuesta inmediata sin invocar los modelos de IA ni consultar la base normativa.
 * **Frontend Optimizado con Tailwind CSS Compilado:** Hoja de estilos estática minificada sin dependencias de CDN en tiempo de ejecución.
 * **Gestión de Roles Integrada:**
   * **Administrador:** Panel de control, gestión CRUD de cuentas y monitoreo de eventos de APIs de IA.
   * **Gestor de Base de Conocimiento:** Carga, actualización y deduplicación de leyes federales en PDF e interfaz de prueba de chat sin restricciones de cuota.
   * **Usuario Registrado:** Consultas en lenguaje natural fundamentadas con citas explícitas e historial conversacional persistente.
+
+### Flujo de consulta
+
+El sistema clasifica primero el mensaje: los saludos y las cortesías se responden directamente, mientras que las consultas jurídicas pasan por la búsqueda híbrida vectorial y léxica. Los fragmentos recuperados se entregan al modelo con encabezados que identifican la ley y el artículo; la respuesta debe mencionar el artículo que la fundamenta y puede citar literalmente el texto normativo pertinente. 
 
 ---
 
@@ -72,7 +77,7 @@
 │   │   ├── decorators.py           # @roles_requeridos para control de acceso RBAC
 │   │   ├── middleware.py           # AutenticacionRequeridaMiddleware (Zero-Trust)
 │   │   ├── models.py               # Usuario, LeyFederal, FragmentoNormativo, Conversacion, Mensaje, RegistroFalloAPI
-│   │   ├── tests.py                # Suite de 24 casos de prueba
+│   │   ├── tests.py                # Suite de 35 casos de prueba
 │   │   ├── urls.py
 │   │   └── __init__.py
 │   └── __init__.py
@@ -147,6 +152,8 @@ POSTGRES_PORT=5432
 # Proveedores de Modelos de Lenguaje (LLMs)
 GROQ_API_KEY=tu_groq_api_key
 GEMINI_API_KEY=tu_gemini_api_key
+GEMINI_MODEL=gemini-3.8-flash
+GROQ_MODEL=openai/gpt-oss-120b
 ```
 
 ---
@@ -177,7 +184,7 @@ Abre tu navegador e ingresa a: **[http://localhost:8000](http://localhost:8000)*
 
 ## Ejecución de Pruebas Automatizadas
 
-El proyecto incluye **24 casos de prueba** para cuotas, middleware, permisos por rol, procesamiento y deduplicación de PDF, fallback de proveedores y búsqueda híbrida:
+El proyecto incluye **35 casos de prueba** para cuotas, middleware, permisos por rol, procesamiento y deduplicación de PDF, fallback de proveedores y búsqueda híbrida:
 
 ```bash
 docker-compose exec web python manage.py test apps.core

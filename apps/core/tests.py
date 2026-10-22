@@ -300,6 +300,35 @@ class PDFProcessorTest(TestCase):
         self.assertEqual(extraer_articulo_fragmento(chunks[0]), "1")
         self.assertEqual(extraer_articulo_fragmento(chunks[1]), "2 Bis")
 
+    def test_extrae_articulos_ordinales_y_sufijos(self):
+        self.assertEqual(
+            extraer_articulo_fragmento("Artículo 1o.- La presente Ley…"),
+            "1o",
+        )
+        self.assertEqual(extraer_articulo_fragmento("Artículo 2º. Texto."), "2º")
+        self.assertEqual(extraer_articulo_fragmento("Artículo 3°. Texto."), "3°")
+        self.assertEqual(extraer_articulo_fragmento("Artículo 4 Ter. Texto."), "4 Ter")
+        self.assertEqual(extraer_articulo_fragmento("Artículo 5 Quáter. Texto."), "5 Quáter")
+
+        chunks = _fragmentar_texto_estructurado(
+            "Artículo 1o.- Inicio.\n\nArtículo 2 Quáter. Continuación.",
+            chunk_size=100,
+        )
+        self.assertEqual(len(chunks), 2)
+        self.assertEqual(extraer_articulo_fragmento(chunks[0]), "1o")
+        self.assertEqual(extraer_articulo_fragmento(chunks[1]), "2 Quáter")
+
+    def test_mencion_de_articulo_en_oracion_no_se_toma_como_encabezado(self):
+        texto = (
+            "Artículo 1o.- La presente Ley establece las disposiciones aplicables.\n"
+            "En términos del artículo 27 de esta Ley, se determinarán los requisitos."
+        )
+
+        chunks = _fragmentar_texto_estructurado(texto, chunk_size=250)
+
+        self.assertEqual(len(chunks), 1)
+        self.assertEqual(extraer_articulo_fragmento(chunks[0]), "1o")
+
     @patch('apps.core.services.pdf_processor.pypdf.PdfReader')
     def test_extrae_sugerencias_de_la_primera_pagina(self, mock_pdf_reader):
         pagina = MagicMock()
@@ -564,6 +593,9 @@ class ChatServiceFallbackTest(TestCase):
         self.assertEqual(proveedor, Mensaje.ProveedorIA.GROQ)
         self.assertFalse(conmutado)
         self.assertEqual(RegistroFalloAPI.objects.count(), 0)
+        system_prompt = mock_client.chat.completions.create.call_args.kwargs['messages'][0]['content']
+        self.assertIn("Menciona explícitamente el artículo", system_prompt)
+        self.assertNotIn("Evita copiar texto literal", system_prompt)
 
     @patch('apps.core.services.chat_service.get_gemini_client')
     @patch('apps.core.services.chat_service.get_groq_client')

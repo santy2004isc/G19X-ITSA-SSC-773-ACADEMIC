@@ -1,3 +1,4 @@
+import logging
 import os
 import re
 import time
@@ -12,7 +13,7 @@ from pgvector.django import CosineDistance
 from ..models import FragmentoNormativo, LeyFederal, Mensaje, RegistroFalloAPI
 from .pdf_processor import generar_vector_embedding  
 
-MODELO_GROQ_DEFAULT = "openai/gpt-oss-120b" 
+logger = logging.getLogger(__name__)
 
 MENSAJE_SATURACION_APIS = (
     "En este momento los servicios de consulta inteligente se encuentran "
@@ -110,7 +111,7 @@ def buscar_contexto_normativo(pregunta_usuario, top_k=4):
             candidatos_dict[frag_id] = frag
             rrf_scores[frag_id] = rrf_scores.get(frag_id, 0.0) + (1.0 / (k_rrf + (rank + 1)))
     except Exception:
-        pass
+        logger.exception("Falló la recuperación vectorial de fragmentos normativos.")
 
     # 2. Recuperación Léxica / Full-Text Search (Exactitud en artículos y términos legales)
     try:
@@ -131,7 +132,7 @@ def buscar_contexto_normativo(pregunta_usuario, top_k=4):
             # Se otorga un multiplicador de 1.2 a la coincidencia léxica exacta (ej. números de artículo o siglas)
             rrf_scores[frag_id] = rrf_scores.get(frag_id, 0.0) + (1.2 / (k_rrf + (rank + 1)))
     except Exception:
-        pass
+        logger.exception("Falló la recuperación léxica de fragmentos normativos.")
 
     # 3. Selección y ordenamiento por puntuación RRF combinada
     ids_ordenados = sorted(rrf_scores.keys(), key=lambda fid: rrf_scores[fid], reverse=True)[:top_k]
@@ -223,7 +224,9 @@ def generar_respuesta_ia_con_fallback(pregunta_usuario, contexto_normativo, usua
         "\"Lo siento, únicamente puedo responder consultas relacionadas con el marco legal mexicano y fundamentadas en el contexto normativo disponible. Por favor, formula una pregunta dentro de este ámbito.\"\n\n"
         "PAUTAS DE RESPUESTA:\n"
         "1. Explica los conceptos jurídicos en un lenguaje natural, claro, accesible y profesional.\n"
-        "2. Evita copiar texto literal o usar jerga excesivamente compleja salvo que sea estrictamente necesario.\n"
+        "2. Menciona explícitamente el artículo del contexto normativo en que apoyas la respuesta; "
+        "los encabezados indican la ley y el número de artículo. Cita literalmente el texto pertinente "
+        "cuando ayude a fundamentar la explicación y no inventes referencias.\n"
         "3. No menciones la vigencia o estado de las leyes, ya que todas las normas proporcionadas están vigentes."
     )
 
@@ -235,7 +238,7 @@ def generar_respuesta_ia_con_fallback(pregunta_usuario, contexto_normativo, usua
     # 1. INTENTO PRINCIPAL: GROQ CLOUD (Prioritario, timeout <= 5s)
     try:
         groq_client = get_groq_client()
-        modelo_groq = modelo_solicitado if isinstance(modelo_solicitado, str) else MODELO_GROQ_DEFAULT
+        modelo_groq = modelo_solicitado if isinstance(modelo_solicitado, str) else settings.GROQ_MODEL
         
         response = groq_client.chat.completions.create(
             model=modelo_groq,
