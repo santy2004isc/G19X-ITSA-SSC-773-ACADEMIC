@@ -7,6 +7,26 @@ from sentence_transformers import SentenceTransformer
 
 # Cargador perezoso para el modelo sentence-transformers (768 dimensiones) (RF-2.3)
 _embedding_model = None
+_ENCABEZADO_ARTICULO = re.compile(
+    r"\bArt[ií]culo\s+(\d+)(?:\s+(Bis))?\b",
+    re.IGNORECASE,
+)
+_INICIO_ARTICULO = re.compile(
+    r"(?=\bArt[ií]culo\s+\d+(?:\s+Bis)?\b)",
+    re.IGNORECASE,
+)
+
+
+def extraer_articulo_fragmento(texto):
+    """Obtiene el artículo más reciente mencionado en un fragmento normativo."""
+    encabezados = list(_ENCABEZADO_ARTICULO.finditer(texto))
+    if not encabezados:
+        return ""
+
+    encabezado = encabezados[-1]
+    numero, bis = encabezado.groups()
+    return f"{numero} Bis" if bis else numero
+
 
 def get_embedding_model():
     global _embedding_model
@@ -59,37 +79,43 @@ def _fragmentar_texto_estructurado(texto, chunk_size=1000, overlap=150):
     chunks = []
     chunk_actual = ""
     for parrafo in (p.strip() for p in texto.split("\n\n") if p.strip()):
-        partes = dividir_largo(parrafo)
-        separador = "\n\n"
-        for parte in partes:
-            separador_actual = separador if chunk_actual else ""
-            candidato = f"{chunk_actual}{separador_actual}{parte}".strip()
-            if len(candidato) <= chunk_size:
-                chunk_actual = candidato
-                separador = " "
-                continue
-
-            if chunk_actual:
+        unidades = (u.strip() for u in _INICIO_ARTICULO.split(parrafo) if u.strip())
+        for unidad in unidades:
+            if _ENCABEZADO_ARTICULO.match(unidad) and chunk_actual:
                 chunks.append(chunk_actual)
-                palabras_previas = chunk_actual.split()
-                traslape = ""
-                longitud = 0
-                for palabra in reversed(palabras_previas):
-                    if longitud + len(palabra) + 1 > overlap:
-                        break
-                    traslape = f"{palabra} {traslape}".strip()
-                    longitud += len(palabra) + 1
-                espacio_disponible = chunk_size - len(parte) - 1
-                if espacio_disponible > 0 and traslape:
-                    traslape = traslape[-espacio_disponible:].lstrip()
-                    if " " in traslape:
-                        traslape = traslape.split(" ", 1)[1]
-                else:
+                chunk_actual = ""
+
+            partes = dividir_largo(unidad)
+            separador = "\n\n"
+            for parte in partes:
+                separador_actual = separador if chunk_actual else ""
+                candidato = f"{chunk_actual}{separador_actual}{parte}".strip()
+                if len(candidato) <= chunk_size:
+                    chunk_actual = candidato
+                    separador = " "
+                    continue
+
+                if chunk_actual:
+                    chunks.append(chunk_actual)
+                    palabras_previas = chunk_actual.split()
                     traslape = ""
-                chunk_actual = f"{traslape} {parte}".strip() if traslape else parte
-            else:
-                chunk_actual = parte
-            separador = " "
+                    longitud = 0
+                    for palabra in reversed(palabras_previas):
+                        if longitud + len(palabra) + 1 > overlap:
+                            break
+                        traslape = f"{palabra} {traslape}".strip()
+                        longitud += len(palabra) + 1
+                    espacio_disponible = chunk_size - len(parte) - 1
+                    if espacio_disponible > 0 and traslape:
+                        traslape = traslape[-espacio_disponible:].lstrip()
+                        if " " in traslape:
+                            traslape = traslape.split(" ", 1)[1]
+                    else:
+                        traslape = ""
+                    chunk_actual = f"{traslape} {parte}".strip() if traslape else parte
+                else:
+                    chunk_actual = parte
+                separador = " "
 
     if chunk_actual:
         chunks.append(chunk_actual)

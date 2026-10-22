@@ -14,6 +14,7 @@ from ...forms.gestor_forms import CargarDocumentoForm, EditarPerfilGestorForm, E
 from ...services.pdf_processor import (
     procesar_pdf_en_memoria,
     extraer_metadatos_primera_pagina,
+    extraer_articulo_fragmento,
     generar_vector_embedding,
     calcular_hash_fragmento
 )
@@ -22,7 +23,12 @@ from ...services.pdf_processor import (
 def _crear_fragmentos_normativos(ley, chunks):
     fragmentos = []
     fragmentos_vistos = set()
+    articulo_actual = ""
     for chunk in chunks:
+        articulo_detectado = extraer_articulo_fragmento(chunk)
+        if articulo_detectado:
+            articulo_actual = articulo_detectado
+
         clave = " ".join(chunk.split())
         if clave in fragmentos_vistos:
             continue
@@ -31,6 +37,7 @@ def _crear_fragmentos_normativos(ley, chunks):
             FragmentoNormativo(
                 ley=ley,
                 contenido_fragmento=chunk,
+                articulo=articulo_actual,
                 vector_embedding=generar_vector_embedding(chunk),
                 hash_fragmento=calcular_hash_fragmento(chunk, ley.pk),
             )

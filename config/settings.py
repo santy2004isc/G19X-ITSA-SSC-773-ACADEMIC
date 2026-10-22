@@ -114,6 +114,7 @@ AUTH_PASSWORD_VALIDATORS = [
 
 # Configuración del Proveedor LLM
 GEMINI_API_KEY = config('GEMINI_API_KEY', default='')
+GEMINI_MODEL = config('GEMINI_MODEL', default='gemini-3.8-flash')
 GROQ_API_KEY = config('GROQ_API_KEY', default='')
 
 # Internationalization

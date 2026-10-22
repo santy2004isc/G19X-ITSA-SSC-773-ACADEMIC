@@ -1,4 +1,5 @@
 import io
+import json
 from datetime import timedelta
 from unittest.mock import patch, MagicMock
 from django.test import TestCase, Client
@@ -13,6 +14,7 @@ from .forms.auth_forms import RegistroForm
 from .forms.gestor_forms import CargarDocumentoForm
 from .services.pdf_processor import (
     _fragmentar_texto_estructurado,
+    extraer_articulo_fragmento,
     procesar_pdf_en_memoria,
     calcular_hash_fragmento,
     extraer_metadatos_primera_pagina,
@@ -258,6 +260,7 @@ class ControlDeRolesTest(TestCase):
         self.assertEqual(FragmentoNormativo.objects.count(), 2)
         self.assertEqual(ley_a.fragmentos.count(), 1)
         self.assertEqual(ley_b.fragmentos.count(), 1)
+        self.assertEqual(ley_a.fragmentos.get().articulo, '1')
         self.assertEqual(mock_embedding.call_count, 2)
 
 
@@ -283,6 +286,19 @@ class PDFProcessorTest(TestCase):
             calcular_hash_fragmento(texto, 1),
             calcular_hash_fragmento(f" {texto}  ", 1),
         )
+
+    def test_extrae_numero_de_articulo_y_articulo_bis(self):
+        self.assertEqual(extraer_articulo_fragmento("Artículo 12. Texto."), "12")
+        self.assertEqual(extraer_articulo_fragmento("ARTÍCULO 12 bis. Texto."), "12 Bis")
+        self.assertEqual(extraer_articulo_fragmento("Texto sin encabezado."), "")
+
+        chunks = _fragmentar_texto_estructurado(
+            "Artículo 1. Descanso semanal.\n\nArtículo 2 Bis. Duración.",
+            chunk_size=100,
+        )
+        self.assertEqual(len(chunks), 2)
+        self.assertEqual(extraer_articulo_fragmento(chunks[0]), "1")
+        self.assertEqual(extraer_articulo_fragmento(chunks[1]), "2 Bis")
 
     @patch('apps.core.services.pdf_processor.pypdf.PdfReader')
     def test_extrae_sugerencias_de_la_primera_pagina(self, mock_pdf_reader):
@@ -403,16 +419,16 @@ class ChatIntentTest(TestCase):
 
     def test_clasifica_saludos_aclaraciones_y_consultas_juridicas(self):
         self.assertEqual(clasificar_mensaje('Hola, buenas tardes'), 'saludo')
-        self.assertEqual(clasificar_mensaje('No es lo que dije'), 'aclaracion')
+        self.assertEqual(clasificar_mensaje('No es lo que dije'), 'juridico')
         self.assertEqual(clasificar_mensaje('Gracias'), 'cortesia')
         self.assertEqual(
             clasificar_mensaje('¿Qué derechos tengo si me despidieron?'),
             'juridico',
         )
-        self.assertEqual(clasificar_mensaje('¿Cuánto cuesta un boleto?'), 'no_juridico')
+        self.assertEqual(clasificar_mensaje('¿Cuánto cuesta un boleto?'), 'juridico')
 
-    @patch('apps.core.views.usuario.chat_views.generar_respuesta_ia_con_fallback')
-    @patch('apps.core.views.usuario.chat_views.buscar_contexto_normativo')
+    @patch('apps.core.services.chat_service.generar_respuesta_ia_con_fallback')
+    @patch('apps.core.services.chat_service.buscar_contexto_normativo')
     def test_saludo_usuario_no_consulta_leyes_ni_usa_ia(self, mock_buscar, mock_generar):
         self.client.force_login(self.usuario)
         response = self.client.post(
@@ -428,9 +444,11 @@ class ChatIntentTest(TestCase):
         mock_buscar.assert_not_called()
         mock_generar.assert_not_called()
 
-    @patch('apps.core.views.gestor.chat_gestor_views.generar_respuesta_ia_con_fallback')
-    @patch('apps.core.views.gestor.chat_gestor_views.buscar_contexto_normativo')
-    def test_mensaje_ajeno_del_gestor_no_consulta_leyes_ni_usa_ia(self, mock_buscar, mock_generar):
+    @patch('apps.core.services.chat_service.generar_respuesta_ia_con_fallback')
+    @patch('apps.core.services.chat_service.buscar_contexto_normativo')
+    def test_mensaje_no_social_del_gestor_consulta_normativa(self, mock_buscar, mock_generar):
+        mock_buscar.return_value = ('Contexto legal', [])
+        mock_generar.return_value = ('No se encontró información', Mensaje.ProveedorIA.GROQ, False)
         self.client.force_login(self.gestor)
         response = self.client.post(
             reverse('gestor_enviar_mensaje_api'),
@@ -439,10 +457,8 @@ class ChatIntentTest(TestCase):
         )
 
         self.assertEqual(response.status_code, 200)
-        self.assertIsNone(response.json()['respuesta']['proveedor'])
-        self.assertEqual(response.json()['respuesta']['citas'], [])
-        mock_buscar.assert_not_called()
-        mock_generar.assert_not_called()
+        mock_buscar.assert_called_once_with('¿Cuánto cuesta un boleto?')
+        mock_generar.assert_called_once()
 
     def test_endpoint_rechaza_mensajes_invalidos_o_muy_largos(self):
         self.client.force_login(self.usuario)
@@ -457,10 +473,13 @@ class ChatIntentTest(TestCase):
             )
             self.assertEqual(response.status_code, 400)
 
-    @patch('apps.core.views.usuario.chat_views.generar_respuesta_ia_con_fallback')
-    @patch('apps.core.views.usuario.chat_views.buscar_contexto_normativo')
+    @patch('apps.core.services.chat_service.generar_respuesta_ia_con_fallback')
+    @patch('apps.core.services.chat_service.buscar_contexto_normativo')
     def test_consulta_juridica_si_consulta_la_base_normativa(self, mock_buscar, mock_generar):
-        mock_buscar.return_value = ('Contexto legal', [{'ley': 'Ley Federal', 'siglas': 'LF'}])
+        mock_buscar.return_value = (
+            'Contexto legal',
+            [{'ley': 'Ley Federal', 'siglas': 'LF', 'articulo': '123'}],
+        )
         mock_generar.return_value = ('Respuesta jurídica', Mensaje.ProveedorIA.GROQ, False)
         self.client.force_login(self.usuario)
         response = self.client.post(
@@ -473,6 +492,33 @@ class ChatIntentTest(TestCase):
         mock_buscar.assert_called_once_with('¿Qué derechos tengo si me despidieron?')
         mock_generar.assert_called_once()
         self.assertEqual(response.json()['respuesta']['citas'][0]['ley'], 'Ley Federal')
+        self.assertEqual(response.json()['respuesta']['citas'][0]['articulo'], '123')
+
+    @patch('apps.core.services.chat_service.generar_respuesta_ia_con_fallback')
+    @patch('apps.core.services.chat_service.buscar_contexto_normativo')
+    def test_consultas_sobre_lft_imss_e_isr_buscan_normativa(self, mock_buscar, mock_generar):
+        preguntas = (
+            '¿Qué dice la LFT sobre el descanso semanal?',
+            '¿Cuántos días de incapacidad da el IMSS?',
+            '¿Cómo se calcula el ISR?',
+        )
+        mock_buscar.return_value = ('Contexto legal', [])
+        mock_generar.return_value = ('Respuesta jurídica', Mensaje.ProveedorIA.GROQ, False)
+        self.client.force_login(self.usuario)
+
+        for pregunta in preguntas:
+            response = self.client.post(
+                reverse('chat_api_enviar'),
+                data=json.dumps({'mensaje': pregunta}),
+                content_type='application/json',
+            )
+            self.assertEqual(response.status_code, 200)
+
+        self.assertEqual(
+            [llamada.args[0] for llamada in mock_buscar.call_args_list],
+            list(preguntas),
+        )
+        self.assertEqual(mock_generar.call_count, len(preguntas))
 
 
 class ChatServiceFallbackTest(TestCase):
@@ -603,6 +649,7 @@ class BusquedaHibridaTest(TestCase):
         self.fragmento = FragmentoNormativo.objects.create(
             ley=self.ley,
             contenido_fragmento="Artículo 123. Toda persona tiene derecho al trabajo digno y socialmente útil.",
+            articulo="123",
             vector_embedding=dummy_vector,
             hash_fragmento="hashfragmento123dummyabcdef1234567890abcdef1234567890abcdef1234"
         )
@@ -617,6 +664,8 @@ class BusquedaHibridaTest(TestCase):
         contexto, citas = buscar_contexto_normativo("artículo 123 trabajo digno", top_k=2)
 
         self.assertIn("Ley Federal del Trabajo", contexto)
+        self.assertIn("· Art. 123 ---", contexto)
         self.assertIn("Artículo 123", contexto)
         self.assertEqual(len(citas), 1)
         self.assertEqual(citas[0]['siglas'], "LFT")
+        self.assertEqual(citas[0]['articulo'], "123")

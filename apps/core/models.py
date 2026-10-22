@@ -207,6 +207,12 @@ class FragmentoNormativo(models.Model):
         verbose_name='Ley asociada'
     )
     contenido_fragmento = models.TextField(verbose_name='Contenido del fragmento')
+    articulo = models.CharField(
+        max_length=50,
+        blank=True,
+        default='',
+        verbose_name='Artículo',
+    )
     vector_embedding = VectorField(
         dimensions=768, 
         verbose_name='Vector Embedding (768 dims)'

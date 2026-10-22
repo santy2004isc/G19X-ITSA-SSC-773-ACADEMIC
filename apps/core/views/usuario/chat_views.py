@@ -1,23 +1,22 @@
 import json
+import logging
 from uuid import UUID
 from django.http import Http404
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
 from django.http import JsonResponse
 from django.views.decorators.http import require_POST
-from django.db import transaction
 from django.contrib import messages
 
-from ...models import Usuario, Conversacion, Mensaje
+from ...models import Usuario, Conversacion
 from ...forms.usuario_forms import EditarPerfilUsuarioForm
 from ...decorators import roles_requeridos
 from ...services.chat_service import (
     MAX_LONGITUD_MENSAJE,
-    buscar_contexto_normativo,
-    clasificar_mensaje,
-    generar_respuesta_ia_con_fallback,
-    respuesta_sin_consulta_normativa,
+    procesar_mensaje_chat,
 )
+
+logger = logging.getLogger(__name__)
 
 
 @login_required
@@ -130,42 +129,12 @@ def enviar_mensaje_api_view(request):
             conversacion.titulo = pregunta[:40] + ("..." if len(pregunta) > 40 else "")
             conversacion.save()
 
-        with transaction.atomic():
-            # 3. Guardar pregunta del usuario
-            msg_usuario = Mensaje.objects.create(
-                conversacion=conversacion,
-                emisor=Mensaje.Emisor.USUARIO,
-                contenido_texto=pregunta
-            )
-
-            # Los mensajes sociales y ajenos al ámbito jurídico no activan RAG ni IA.
-            tipo_mensaje = clasificar_mensaje(pregunta)
-            if tipo_mensaje == 'juridico':
-                contexto, citas = buscar_contexto_normativo(pregunta)
-                respuesta_texto, proveedor_usado, conmutado = generar_respuesta_ia_con_fallback(
-                    pregunta_usuario=pregunta,
-                    contexto_normativo=contexto,
-                    usuario=usuario
-                )
-            else:
-                respuesta_texto = respuesta_sin_consulta_normativa(tipo_mensaje)
-                proveedor_usado = None
-                conmutado = False
-                citas = []
-
-            # 5. Guardar respuesta del sistema
-            msg_sistema = Mensaje.objects.create(
-                conversacion=conversacion,
-                emisor=Mensaje.Emisor.SISTEMA,
-                contenido_texto=respuesta_texto,
-                proveedor_ia=proveedor_usado,
-                conmutado_fallback=conmutado,
-                citas=citas
-            )
-
-            # 6. Incrementar consumo de cuota diaria
-            usuario.mensajes_usados_hoy += 1
-            usuario.save(update_fields=['mensajes_usados_hoy'])
+        msg_usuario, msg_sistema, citas = procesar_mensaje_chat(
+            conversacion,
+            pregunta,
+            usuario,
+            consumir_cuota=True,
+        )
 
         mensajes_restantes = max(0, usuario.cuota_diaria_mensajes - usuario.mensajes_usados_hoy)
 
@@ -191,8 +160,12 @@ def enviar_mensaje_api_view(request):
 
     except Http404:
         return JsonResponse({'error': 'La conversación no existe.'}, status=404)
-    except Exception as e:
-        return JsonResponse({'error': f'Error interno: {str(e)}'}, status=500)
+    except Exception:
+        logger.exception("Error interno al procesar un mensaje de usuario.")
+        return JsonResponse(
+            {'error': 'Ocurrió un error interno al procesar tu mensaje. Inténtalo de nuevo.'},
+            status=500,
+        )
 
 
 @login_required

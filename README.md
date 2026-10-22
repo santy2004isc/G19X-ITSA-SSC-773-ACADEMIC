@@ -38,7 +38,7 @@
 | **Base de Datos** | PostgreSQL 16 + `pgvector` | Base de datos relacional y motor vectorial unificado con índice HNSW. |
 | **Búsqueda Léxica** | PostgreSQL Full-Text Search (FTS) | Búsqueda léxica con diccionario en español (`spanish`). |
 | **Vectorización Local** | `sentence-transformers` | Embeddings multilingües de 768 dimensiones. |
-| **Modelos LLM (Inferencia)** | Groq (`openai/gpt-oss-120b`) y Google Gemini (`gemini-3.8-flash`) | Groq como proveedor principal y Gemini como fallback. |
+| **Modelos LLM (Inferencia)** | Groq y Google Gemini | Groq como proveedor principal y Gemini como fallback. |
 | **Frontend** | Django Templates + Tailwind CSS | Interfaz responsive con estilos estáticos compilados y peticiones AJAX. |
 | **Contenerización** | Docker & Docker Compose | Aislamiento y despliegue unificado de servicios (`web` y `db`). |
 

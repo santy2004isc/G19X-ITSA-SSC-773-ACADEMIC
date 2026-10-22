@@ -1,13 +1,13 @@
-Django>=5.0
-python-decouple>=3.8
-psycopg2-binary>=2.9
-pgvector>=0.2.5
-google-genai>=0.1.0
-groq>=0.5.0
+Django==5.2.18
+python-decouple==3.8
+psycopg2-binary==2.9.13
+pgvector==0.5.1
+google-genai==2.31.0
+groq==1.7.0
 
-pypdf>=4.0.0
-python-docx>=1.0.0
-python-dotenv>=1.0.0
-requests>=2.31.0
+pypdf==6.20.1
+python-docx==1.2.0
+python-dotenv==1.2.4
+requests==2.34.2
 
-sentence-transformers>=2.5.0
+sentence-transformers==6.1.0

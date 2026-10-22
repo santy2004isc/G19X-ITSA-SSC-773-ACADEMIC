@@ -95,7 +95,7 @@
                                     <span class="font-semibold block text-[11px] text-blue-700">Leyes Consultadas:</span>
                                     {% for cita in msg.citas %}
                                         <div class="bg-slate-50 p-1.5 rounded border border-slate-200 break-words">
-                                            📜 {{ cita.ley }} {% if cita.siglas %}({{ cita.siglas }}){% endif %} - Reforma: {{ cita.fecha_reforma }}
+                                            📜 {{ cita.ley }} {% if cita.siglas %}({{ cita.siglas }}){% endif %} - Art. {{ cita.articulo|default:"—" }} - Reforma: {{ cita.fecha_reforma }}
                                         </div>
                                     {% endfor %}
                                 </div>
@@ -291,7 +291,7 @@
         if (resp.citas && resp.citas.length > 0) {
             citasHtml = `<div class="mt-2 pt-2 border-t border-slate-200 text-xs text-slate-600 space-y-1">
                 <span class="font-semibold block text-[11px] text-blue-700">Leyes Consultadas:</span>
-                ${resp.citas.map(c => `<div class="bg-slate-50 p-1.5 rounded border border-slate-200 break-words">📜 ${escaparHtml(c.ley)} ${c.siglas ? '('+escaparHtml(c.siglas)+')' : ''} - Reforma: ${escaparHtml(c.fecha_reforma)}</div>`).join('')}
+                ${resp.citas.map(c => `<div class="bg-slate-50 p-1.5 rounded border border-slate-200 break-words">📜 ${escaparHtml(c.ley)} ${c.siglas ? '('+escaparHtml(c.siglas)+')' : ''} - Art. ${escaparHtml(c.articulo || '—')} - Reforma: ${escaparHtml(c.fecha_reforma)}</div>`).join('')}
             </div>`;
         }
 

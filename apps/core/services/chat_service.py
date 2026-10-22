@@ -7,12 +7,12 @@ from google import genai
 from google.genai.errors import APIError
 from django.conf import settings
 from django.contrib.postgres.search import SearchVector, SearchQuery, SearchRank
+from django.db import transaction
 from pgvector.django import CosineDistance
 from ..models import FragmentoNormativo, LeyFederal, Mensaje, RegistroFalloAPI
 from .pdf_processor import generar_vector_embedding  
 
 MODELO_GROQ_DEFAULT = "openai/gpt-oss-120b" 
-MODELO_GEMINI_DEFAULT = "gemini-3.8-flash"
 
 MENSAJE_SATURACION_APIS = (
     "En este momento los servicios de consulta inteligente se encuentran "
@@ -22,20 +22,6 @@ MENSAJE_SATURACION_APIS = (
 
 MAX_LONGITUD_MENSAJE = 4000
 
-_INDICIOS_JURIDICOS = re.compile(
-    r"\b(?:"
-    r"ley(?:es)?|juridic[oa]s?|derech[oa]s?|articul[oa]s?|constitucion|"
-    r"codigo|codigos|reglamento|norma(?:s)?|decret[oa]s?|reforma|"
-    r"demanda(?:r)?|juicio|denuncia|delito|abogad[oa]|juez|juzgado|"
-    r"contrato|arrendamiento|renta|despedir|despid(?:o|io|ieron)|patron|jefe|"
-    r"salario|sueldo|liquidacion|finiquito|aguinaldo|vacaciones|"
-    r"horas extra|pension|divorcio|custodia|alimentos|impuesto|multa|"
-    r"amparo|autoridad|derechos|"
-    r"obligacion(?:es)?|herencia|fraude|robo|detencion|detuvieron|"
-    r"me deben|no me pagan|no me paga|me quieren cobrar|me corrieron|"
-    r"me demandaron|me demandan|me quitaron|me paga|me pagan|me despidieron"
-    r")\b"
-)
 _MENSAJE_CORTESIA = re.compile(
     r"^(?:gracias|muchas gracias|te agradezco|entendido|"
     r"de acuerdo|perfecto|ok|okay|adios|hasta luego|nos vemos)$"
@@ -61,24 +47,10 @@ def clasificar_mensaje(pregunta_usuario):
     ):
         return "saludo"
 
-    if _INDICIOS_JURIDICOS.search(normalizado):
-        return "juridico"
-
-    if re.match(
-        r"^(?:no es lo que dije|no es lo que te dije|eso no es lo que dije|"
-        r"eso no fue lo que pregunte|no fue eso lo que pregunte|"
-        r"no era lo que pregunte|no dije eso|te dije otra cosa|"
-        r"no fue eso|no me entendiste|me entendiste mal|"
-        r"no era eso|no es eso|eso no|no,? eso no|"
-        r"eso no responde mi pregunta)",
-        normalizado,
-    ):
-        return "aclaracion"
-
     if _MENSAJE_CORTESIA.fullmatch(normalizado):
         return "cortesia"
 
-    return "no_juridico"
+    return "juridico"
 
 
 def respuesta_sin_consulta_normativa(tipo_mensaje):
@@ -86,11 +58,6 @@ def respuesta_sin_consulta_normativa(tipo_mensaje):
         return (
             "¡Hola! ¿En qué puedo ayudarte? Puedo orientarte sobre leyes federales "
             "de México; cuéntame tu duda jurídica."
-        )
-    if tipo_mensaje == "aclaracion":
-        return (
-            "Entiendo, disculpa la confusión. ¿Podrías explicar de nuevo qué necesitas "
-            "o qué parte debo corregir?"
         )
     if tipo_mensaje == "cortesia":
         return "¡Con gusto! Si tienes otra duda sobre leyes federales de México, aquí estoy para ayudarte."
@@ -175,17 +142,61 @@ def buscar_contexto_normativo(pregunta_usuario, top_k=4):
 
     for fragmento in resultados:
         ley = fragmento.ley
-        contexto_texto += f"\n--- LEY: {ley.nombre} ({ley.siglas or 'S/S'}) ---\n{fragmento.contenido_fragmento}\n"
+        referencia_articulo = (
+            f" · Art. {fragmento.articulo}" if fragmento.articulo else ""
+        )
+        contexto_texto += (
+            f"\n--- LEY: {ley.nombre} ({ley.siglas or 'S/S'})"
+            f"{referencia_articulo} ---\n{fragmento.contenido_fragmento}\n"
+        )
         
         cita_info = {
             'ley': ley.nombre,
             'siglas': ley.siglas or '',
+            'articulo': fragmento.articulo,
             'fecha_reforma': ley.fecha_ultima_reforma.strftime('%d/%m/%Y') if ley.fecha_ultima_reforma else 'Sin reforma registrada'
         }
         if cita_info not in citas:
             citas.append(cita_info)
 
     return contexto_texto, citas
+
+
+def procesar_mensaje_chat(conversacion, pregunta, usuario, consumir_cuota=False):
+    """Genera una respuesta fuera de la transacción y persiste el intercambio de forma atómica."""
+    tipo_mensaje = clasificar_mensaje(pregunta)
+    if tipo_mensaje in ('saludo', 'cortesia'):
+        respuesta_texto = respuesta_sin_consulta_normativa(tipo_mensaje)
+        proveedor_usado = None
+        conmutado = False
+        citas = []
+    else:
+        contexto, citas = buscar_contexto_normativo(pregunta)
+        respuesta_texto, proveedor_usado, conmutado = generar_respuesta_ia_con_fallback(
+            pregunta_usuario=pregunta,
+            contexto_normativo=contexto,
+            usuario=usuario,
+        )
+
+    with transaction.atomic():
+        mensaje_usuario = Mensaje.objects.create(
+            conversacion=conversacion,
+            emisor=Mensaje.Emisor.USUARIO,
+            contenido_texto=pregunta,
+        )
+        mensaje_sistema = Mensaje.objects.create(
+            conversacion=conversacion,
+            emisor=Mensaje.Emisor.SISTEMA,
+            contenido_texto=respuesta_texto,
+            proveedor_ia=proveedor_usado,
+            conmutado_fallback=conmutado,
+            citas=citas,
+        )
+        if consumir_cuota:
+            usuario.mensajes_usados_hoy += 1
+            usuario.save(update_fields=['mensajes_usados_hoy'])
+
+    return mensaje_usuario, mensaje_sistema, citas
 
 
 def generar_respuesta_ia_con_fallback(pregunta_usuario, contexto_normativo, usuario=None, modelo_solicitado=None):
@@ -247,7 +258,7 @@ def generar_respuesta_ia_con_fallback(pregunta_usuario, contexto_normativo, usua
             try:
                 gemini_client = get_gemini_client()
                 response = gemini_client.models.generate_content(
-                    model=MODELO_GEMINI_DEFAULT,
+                    model=settings.GEMINI_MODEL,
                     contents=user_prompt,
                     config={
                         "system_instruction": system_prompt,
