@@ -90,6 +90,21 @@ def gestor_dashboard_view(request):
     su visualización y actualización independientemente de qué usuario las cargó.
     """
     query = request.GET.get('q', '').strip()
+    ordenes_permitidos = {
+        'nombre': 'nombre',
+        'siglas': 'siglas',
+        'publicacion': 'fecha_publicacion',
+        'reforma': 'fecha_ultima_reforma',
+        'cargado_por': 'usuario__nombre',
+        'modificacion': 'fecha_modificacion',
+        'estado': 'estado',
+    }
+    orden = request.GET.get('orden', '')
+    direccion = request.GET.get('direccion', 'asc')
+    campo_orden = ordenes_permitidos.get(orden)
+    if direccion not in ('asc', 'desc'):
+        direccion = 'asc'
+
     leyes = LeyFederal.objects.select_related('usuario', 'usuario_modificacion').all()
 
     if query:
@@ -106,7 +121,12 @@ def gestor_dashboard_view(request):
             Q(siglas_sin_acentos__contains=Unaccent(Value(query.lower())))
         )
 
-    leyes = leyes.order_by('-fecha_creacion')
+    if campo_orden:
+        prefijo_orden = '' if direccion == 'asc' else '-'
+        leyes = leyes.order_by(f'{prefijo_orden}{campo_orden}', 'pk')
+    else:
+        orden = ''
+        leyes = leyes.order_by('-fecha_creacion', 'pk')
     total_fragmentos = FragmentoNormativo.objects.count()
 
     context = {
@@ -114,6 +134,8 @@ def gestor_dashboard_view(request):
         'total_leyes': LeyFederal.objects.count(),
         'total_fragmentos': total_fragmentos,
         'query': query,
+        'orden_actual': orden,
+        'direccion_actual': direccion,
     }
     return render(request, 'gestor/dashboard.html', context)
 

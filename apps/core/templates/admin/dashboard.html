@@ -24,15 +24,32 @@
             </a>
         </div>
 
+        <form method="get" action="{% url 'admin_dashboard' %}" class="flex flex-col sm:flex-row gap-3" role="search">
+            <label for="buscar-usuario" class="sr-only">Buscar usuarios por nombre, apellido o correo</label>
+            <input id="buscar-usuario" type="search" name="q" value="{{ query }}" placeholder="Buscar por nombre, apellido o correo..." class="w-full sm:max-w-md px-4 py-2 bg-white text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:outline-none shadow-sm">
+            <button type="submit" class="bg-slate-700 hover:bg-slate-800 text-white font-medium text-sm px-4 py-2 rounded-lg transition">Buscar</button>
+            {% if query %}
+            <a href="{% url 'admin_dashboard' %}" class="self-center text-sm text-slate-500 hover:text-slate-700">Limpiar búsqueda</a>
+            {% endif %}
+        </form>
+
         <div class="table-scroll bg-white rounded-xl border border-slate-200 overflow-hidden" role="region" aria-label="Tabla de usuarios; desliza horizontalmente para ver todas las columnas" tabindex="0">
             <p class="table-scroll-hint">Desliza horizontalmente para consultar todas las columnas.</p>
             <table class="w-full text-left text-sm text-slate-600">
                 <thead class="bg-slate-50 text-slate-700 uppercase text-xs border-b border-slate-200">
                     <tr>
-                        <th class="px-6 py-3">Nombre</th>
-                        <th class="px-6 py-3">Correo</th>
-                        <th class="px-6 py-3">Rol</th>
-                        <th class="px-6 py-3">Estado</th>
+                        <th class="px-6 py-3">
+                            <a href="?q={{ query|urlencode }}&orden=nombre&direccion={% if orden_actual == 'nombre' and direccion_actual == 'asc' %}desc{% else %}asc{% endif %}" class="hover:text-blue-600">Nombre{% if orden_actual == 'nombre' %}{% if direccion_actual == 'asc' %} ↑{% else %} ↓{% endif %}{% endif %}</a>
+                        </th>
+                        <th class="px-6 py-3">
+                            <a href="?q={{ query|urlencode }}&orden=correo&direccion={% if orden_actual == 'correo' and direccion_actual == 'asc' %}desc{% else %}asc{% endif %}" class="hover:text-blue-600">Correo{% if orden_actual == 'correo' %}{% if direccion_actual == 'asc' %} ↑{% else %} ↓{% endif %}{% endif %}</a>
+                        </th>
+                        <th class="px-6 py-3">
+                            <a href="?q={{ query|urlencode }}&orden=rol&direccion={% if orden_actual == 'rol' and direccion_actual == 'asc' %}desc{% else %}asc{% endif %}" class="hover:text-blue-600">Rol{% if orden_actual == 'rol' %}{% if direccion_actual == 'asc' %} ↑{% else %} ↓{% endif %}{% endif %}</a>
+                        </th>
+                        <th class="px-6 py-3">
+                            <a href="?q={{ query|urlencode }}&orden=estado&direccion={% if orden_actual == 'estado' and direccion_actual == 'asc' %}desc{% else %}asc{% endif %}" class="hover:text-blue-600">Estado{% if orden_actual == 'estado' %}{% if direccion_actual == 'asc' %} ↑{% else %} ↓{% endif %}{% endif %}</a>
+                        </th>
                         <th class="px-6 py-3 text-right">Acciones</th>
                     </tr>
                 </thead>
@@ -57,7 +74,9 @@
                     </tr>
                     {% empty %}
                     <tr>
-                        <td colspan="5" class="px-6 py-8 text-center text-slate-400">No hay otras cuentas registradas en el sistema.</td>
+                        <td colspan="5" class="px-6 py-8 text-center text-slate-400">
+                            {% if query %}No se encontraron usuarios que coincidan con "{{ query }}".{% else %}No hay otras cuentas registradas en el sistema.{% endif %}
+                        </td>
                     </tr>
                     {% endfor %}
                 </tbody>

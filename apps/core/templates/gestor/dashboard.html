@@ -65,13 +65,13 @@
             <table class="w-full text-left text-sm text-slate-600">
                 <thead class="bg-slate-50 text-slate-700 uppercase text-xs border-b border-slate-200">
                     <tr>
-                        <th class="px-5 py-3">Nombre Oficial</th>
-                        <th class="px-4 py-3">Siglas</th>
-                        <th class="px-4 py-3">Publicación</th>
-                        <th class="px-4 py-3">Última Reforma</th>
-                        <th class="px-5 py-3">Cargado Por</th>
-                        <th class="px-5 py-3">Última Modificación</th>
-                        <th class="px-4 py-3">Estado</th>
+                        <th class="px-5 py-3"><a href="?q={{ query|urlencode }}&orden=nombre&direccion={% if orden_actual == 'nombre' and direccion_actual == 'asc' %}desc{% else %}asc{% endif %}" class="hover:text-blue-600">Nombre Oficial{% if orden_actual == 'nombre' %}{% if direccion_actual == 'asc' %} ↑{% else %} ↓{% endif %}{% endif %}</a></th>
+                        <th class="px-4 py-3"><a href="?q={{ query|urlencode }}&orden=siglas&direccion={% if orden_actual == 'siglas' and direccion_actual == 'asc' %}desc{% else %}asc{% endif %}" class="hover:text-blue-600">Siglas{% if orden_actual == 'siglas' %}{% if direccion_actual == 'asc' %} ↑{% else %} ↓{% endif %}{% endif %}</a></th>
+                        <th class="px-4 py-3"><a href="?q={{ query|urlencode }}&orden=publicacion&direccion={% if orden_actual == 'publicacion' and direccion_actual == 'asc' %}desc{% else %}asc{% endif %}" class="hover:text-blue-600">Publicación{% if orden_actual == 'publicacion' %}{% if direccion_actual == 'asc' %} ↑{% else %} ↓{% endif %}{% endif %}</a></th>
+                        <th class="px-4 py-3"><a href="?q={{ query|urlencode }}&orden=reforma&direccion={% if orden_actual == 'reforma' and direccion_actual == 'asc' %}desc{% else %}asc{% endif %}" class="hover:text-blue-600">Última Reforma{% if orden_actual == 'reforma' %}{% if direccion_actual == 'asc' %} ↑{% else %} ↓{% endif %}{% endif %}</a></th>
+                        <th class="px-5 py-3"><a href="?q={{ query|urlencode }}&orden=cargado_por&direccion={% if orden_actual == 'cargado_por' and direccion_actual == 'asc' %}desc{% else %}asc{% endif %}" class="hover:text-blue-600">Cargado Por{% if orden_actual == 'cargado_por' %}{% if direccion_actual == 'asc' %} ↑{% else %} ↓{% endif %}{% endif %}</a></th>
+                        <th class="px-5 py-3"><a href="?q={{ query|urlencode }}&orden=modificacion&direccion={% if orden_actual == 'modificacion' and direccion_actual == 'asc' %}desc{% else %}asc{% endif %}" class="hover:text-blue-600">Última Modificación{% if orden_actual == 'modificacion' %}{% if direccion_actual == 'asc' %} ↑{% else %} ↓{% endif %}{% endif %}</a></th>
+                        <th class="px-4 py-3"><a href="?q={{ query|urlencode }}&orden=estado&direccion={% if orden_actual == 'estado' and direccion_actual == 'asc' %}desc{% else %}asc{% endif %}" class="hover:text-blue-600">Estado{% if orden_actual == 'estado' %}{% if direccion_actual == 'asc' %} ↑{% else %} ↓{% endif %}{% endif %}</a></th>
                         <th class="px-4 py-3 text-right">Acciones</th>
                     </tr>
                 </thead>
