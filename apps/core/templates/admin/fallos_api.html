@@ -15,7 +15,7 @@
     </header>
 
     <main class="flex-1 w-full mx-auto p-6 space-y-6">
-        <div class="table-scroll bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden" role="region" aria-label="Tabla de registros de API; desliza horizontalmente para ver todas las columnas" tabindex="0">
+        <div class="table-scroll bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden" role="region" aria-label="Tabla de registros de API; desliza horizontalmente para ver todas las columnas" tabindex="0" data-enhanced-table data-disable-search="true">
             <div class="px-6 py-4 border-b border-slate-200 flex items-center justify-between">
                 <span class="text-sm font-semibold text-slate-600">Total de Eventos: {{ total_fallos }}</span>
             </div>
@@ -23,7 +23,7 @@
             <table class="w-full text-left text-sm text-slate-600">
                 <thead class="bg-slate-50 text-slate-700 uppercase text-xs border-b border-slate-200">
                     <tr>
-                        <th class="px-6 py-3">Fecha</th>
+                        <th class="px-6 py-3 sortable-column" data-sort="0"><button type="button" class="sort-button">Fecha <span class="sort-icon" aria-hidden="true">↕</span></button></th>
                         <th class="px-6 py-3">Usuario</th>
                         <th class="px-6 py-3">Proveedor Solicitado</th>
                         <th class="px-6 py-3">Código Error</th>

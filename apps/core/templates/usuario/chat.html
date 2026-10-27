@@ -50,7 +50,7 @@
         <!-- Footer Usuario -->
         <div class="p-3 border-t border-slate-800 flex items-center justify-between bg-slate-950/50">
             <a href="{% url 'usuario_perfil' %}" class="flex items-center space-x-2 text-xs font-medium text-slate-300 hover:text-white truncate">
-                <div class="w-7 h-7 rounded-full bg-slate-700 flex items-center justify-center font-bold text-slate-200 text-xs">
+                <div class="user-avatar-initial w-7 h-7 rounded-full flex items-center justify-center font-bold text-xs" aria-hidden="true">
                     {{ request.user.nombre|slice:":1" }}
                 </div>
                 <span class="truncate">{{ request.user.nombre }} {{ request.user.apellido }}</span>
