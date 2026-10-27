@@ -20,7 +20,7 @@
 * **Embeddings Locales:** Generación de representaciones vectoriales densas de 768 dimensiones ejecutada en el backend local utilizando `sentence-transformers` (`paraphrase-multilingual-mpnet-base-v2`), eliminando costos y cuotas externas para la indexación.
 * **Índices Vectoriales HNSW en `pgvector`:** Índice `HnswIndex` (`vector_cosine_ops`) para recuperar candidatos por distancia coseno.
 * **Búsqueda Híbrida con Reciprocal Rank Fusion (RRF):** Fusión sinérgica entre la búsqueda semántica vectorial y el motor de *Full-Text Search* en español de PostgreSQL (`SearchVector` / `SearchQuery`), garantizando máxima precisión en las leyes, siglas (*"LFT"*, *"CPEUM"*) o términos literales.
-* **Control de cuota diaria:** Cuota configurable por usuario (50 mensajes diarios por defecto), con reinicio por fecha.
+* **Control de cuota diaria:** Cuota configurable por usuario (50 mensajes jurídicos diarios por defecto), con reinicio por fecha; saludos y cortesías no consumen cuota.
 * **Clasificador de saludos:** Los saludos y mensajes breves de cortesía reciben una respuesta inmediata sin invocar los modelos de IA ni consultar la base normativa.
 * **Frontend Optimizado con Tailwind CSS Compilado:** Hoja de estilos estática minificada sin dependencias de CDN en tiempo de ejecución.
 * **Gestión de Roles Integrada:**
@@ -43,7 +43,7 @@ El sistema clasifica primero el mensaje: los saludos y las cortesías se respond
 | **Base de Datos** | PostgreSQL 16 + `pgvector` | Base de datos relacional y motor vectorial unificado con índice HNSW. |
 | **Búsqueda Léxica** | PostgreSQL Full-Text Search (FTS) | Búsqueda léxica con diccionario en español (`spanish`). |
 | **Vectorización Local** | `sentence-transformers` | Embeddings multilingües de 768 dimensiones. |
-| **Modelos LLM (Inferencia)** | Groq y Google Gemini | Groq como proveedor principal y Gemini como fallback. |
+| **Modelos LLM (Inferencia)** | Groq y Google Gemini | Groq como proveedor principal y Gemini (`gemini-3.8-flash`, modelo estable documentado por [Google Gemini API](https://ai.google.dev/gemini-api/docs/models)) como fallback. |
 | **Frontend** | Django Templates + Tailwind CSS | Interfaz responsive con estilos estáticos compilados y peticiones AJAX. |
 | **Contenerización** | Docker & Docker Compose | Aislamiento y despliegue unificado de servicios (`web` y `db`). |
 
@@ -230,7 +230,7 @@ flowchart TD
 
 1. **Autenticación:** Inicio de sesión con correo y contraseña. Los nuevos usuarios pueden registrarse mediante el formulario público con rol de *Usuario Registrado*.
 2. **Carga e Ingesta (Gestor):** Selecciona o arrastra un PDF de Ley Federal vigente. Se extrae el texto legible, se divide en fragmentos acotados con solapamiento y se indexa en `pgvector`. La deduplicación por hash del texto evita volver a procesar contenido sin cambios aunque cambien los metadatos del PDF. La aplicación no guarda el PDF como registro permanente.
-3. **Chat Jurídico (Usuario Registrado):** Realiza preguntas normativas en lenguaje natural. El motor híbrido localiza y el LLM responde citando la ley y su última fecha de reforma registrada.
+3. **Chat Jurídico (Usuario Registrado):** Realiza preguntas normativas en lenguaje natural. El motor híbrido localiza y el LLM responde citando la ley, el artículo correspondiente y su última fecha de reforma registrada.
 4. **Supervisión y Telemetría (Administrador):** Monitoreo en tiempo real de usuarios, estado de cuentas y registros de conmutación de APIs.
 
 ---
@@ -247,3 +247,7 @@ flowchart TD
 ## Licencia
 
 Desarrollado con fines académicos y de investigación. *Todos los derechos reservados.*
+
+## Asistencia con IA
+
+Para esta actualización se utilizó un asistente de IA (Copilot SDK en VS Code).

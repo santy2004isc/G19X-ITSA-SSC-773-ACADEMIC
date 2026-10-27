@@ -193,7 +193,7 @@ def procesar_mensaje_chat(conversacion, pregunta, usuario, consumir_cuota=False)
             conmutado_fallback=conmutado,
             citas=citas,
         )
-        if consumir_cuota:
+        if consumir_cuota and tipo_mensaje == 'juridico':
             usuario.mensajes_usados_hoy += 1
             usuario.save(update_fields=['mensajes_usados_hoy'])
 

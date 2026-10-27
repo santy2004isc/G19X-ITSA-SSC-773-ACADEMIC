@@ -8,15 +8,17 @@ from sentence_transformers import SentenceTransformer
 # Cargador perezoso para el modelo sentence-transformers (768 dimensiones) (RF-2.3)
 _embedding_model = None
 _PATRON_ENCABEZADO_ARTICULO = (
-    r"^[ \t]*Art[ií]culo[ \t]+(\d+)([oº°])?(?:[ \t]+(Bis|Ter|Quáter))?(?!\w)"
+    r"^[ \t]*(?:Artículo|ARTÍCULO)[ \t]+"
+    r"(\d+)([oº°])?(?:[ \t]+(?i:Bis|Ter|Quáter))?(?!\w)(?:\.-|\.)"
 )
 _ENCABEZADO_ARTICULO = re.compile(
     _PATRON_ENCABEZADO_ARTICULO,
-    re.IGNORECASE | re.MULTILINE,
+    re.MULTILINE,
 )
 _INICIO_ARTICULO = re.compile(
-    r"(?=^[ \t]*Art[ií]culo[ \t]+\d+(?:[oº°])?(?:[ \t]+(?:Bis|Ter|Quáter))?(?!\w))",
-    re.IGNORECASE | re.MULTILINE,
+    r"(?=^[ \t]*(?:Artículo|ARTÍCULO)[ \t]+"
+    r"\d+(?:[oº°])?(?:[ \t]+(?i:Bis|Ter|Quáter))?(?!\w)(?:\.-|\.))",
+    re.MULTILINE,
 )
 
 

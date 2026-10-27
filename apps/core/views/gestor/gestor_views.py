@@ -1,3 +1,4 @@
+import re
 from functools import wraps
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
@@ -25,10 +26,18 @@ def _crear_fragmentos_normativos(ley, chunks):
     fragmentos = []
     fragmentos_vistos = set()
     articulo_actual = ""
+    en_transitorios = False
     for chunk in chunks:
+        if re.search(r"^[ \t]*TRANSITORIOS\b", chunk, re.IGNORECASE | re.MULTILINE):
+            en_transitorios = True
+
         articulo_detectado = extraer_articulo_fragmento(chunk)
         if articulo_detectado:
-            articulo_actual = articulo_detectado
+            articulo_actual = (
+                f"{articulo_detectado} Transitorio"
+                if en_transitorios
+                else articulo_detectado
+            )
 
         clave = " ".join(chunk.split())
         if clave in fragmentos_vistos:
@@ -48,7 +57,7 @@ def _crear_fragmentos_normativos(ley, chunks):
 
 def gestor_required(view_func):
     """
-    Restringe acceso a roles GESTOR o ADMINISTRADOR.
+    Restringe acceso a roles.
     """
     @wraps(view_func)
     def _wrapped_view(request, *args, **kwargs):

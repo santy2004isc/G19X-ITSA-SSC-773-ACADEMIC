@@ -340,6 +340,30 @@ class ControlDeRolesTest(TestCase):
         self.assertEqual(ley_a.fragmentos.get().articulo, '1')
         self.assertEqual(mock_embedding.call_count, 2)
 
+    @patch('apps.core.views.gestor.gestor_views.generar_vector_embedding', return_value=[0.0] * 768)
+    def test_articulos_despues_de_transitorios_se_identifican(self, mock_embedding):
+        from .views.gestor.gestor_views import _crear_fragmentos_normativos
+
+        ley = LeyFederal.objects.create(
+            nombre='Ley con transitorios',
+            fecha_publicacion=timezone.now().date(),
+            hash_documento='3' * 64,
+        )
+        chunks = [
+            'Artículo 1. Texto principal.',
+            'TRANSITORIOS',
+            'Artículo 1. Entrada en vigor.',
+            'Artículo 2. Derogaciones.',
+        ]
+
+        fragmentos = _crear_fragmentos_normativos(ley, chunks)
+
+        self.assertEqual(
+            [fragmento.articulo for fragmento in fragmentos],
+            ['1', '', '1 Transitorio', '2 Transitorio'],
+        )
+        self.assertEqual(mock_embedding.call_count, 4)
+
 
 class PDFProcessorTest(TestCase):
     """
@@ -405,6 +429,18 @@ class PDFProcessorTest(TestCase):
 
         self.assertEqual(len(chunks), 1)
         self.assertEqual(extraer_articulo_fragmento(chunks[0]), "1o")
+
+    def test_articulo_en_minusculas_al_inicio_de_linea_no_es_encabezado(self):
+        texto = (
+            "Artículo 1. Disposición inicial.\n"
+            "artículo 27 de esta Ley establece una referencia."
+        )
+
+        chunks = _fragmentar_texto_estructurado(texto, chunk_size=250)
+
+        self.assertEqual(len(chunks), 1)
+        self.assertEqual(extraer_articulo_fragmento(chunks[0]), "1")
+        self.assertEqual(extraer_articulo_fragmento("Artículo 27 de esta Ley"), "")
 
     @patch('apps.core.services.pdf_processor.pypdf.PdfReader')
     def test_extrae_sugerencias_de_la_primera_pagina(self, mock_pdf_reader):
@@ -535,18 +571,27 @@ class ChatIntentTest(TestCase):
 
     @patch('apps.core.services.chat_service.generar_respuesta_ia_con_fallback')
     @patch('apps.core.services.chat_service.buscar_contexto_normativo')
-    def test_saludo_usuario_no_consulta_leyes_ni_usa_ia(self, mock_buscar, mock_generar):
+    def test_saludos_y_cortesias_no_consultan_leyes_ni_consumen_cuota(self, mock_buscar, mock_generar):
         self.client.force_login(self.usuario)
-        response = self.client.post(
-            reverse('chat_api_enviar'),
-            data='{"mensaje":"Hola, buenas tardes"}',
-            content_type='application/json',
-        )
+        for mensaje, respuesta_esperada in (
+            ('Hola, buenas tardes', '¡Hola!'),
+            ('Gracias', '¡Con gusto!'),
+        ):
+            with self.subTest(mensaje=mensaje):
+                response = self.client.post(
+                    reverse('chat_api_enviar'),
+                    data=json.dumps({'mensaje': mensaje}),
+                    content_type='application/json',
+                )
 
-        self.assertEqual(response.status_code, 200)
-        self.assertIsNone(response.json()['respuesta']['proveedor'])
-        self.assertEqual(response.json()['respuesta']['citas'], [])
-        self.assertIn('¡Hola!', response.json()['respuesta']['contenido'])
+                self.assertEqual(response.status_code, 200)
+                self.assertIsNone(response.json()['respuesta']['proveedor'])
+                self.assertEqual(response.json()['respuesta']['citas'], [])
+                self.assertIn(respuesta_esperada, response.json()['respuesta']['contenido'])
+                self.assertEqual(response.json()['mensajes_restantes'], self.usuario.cuota_diaria_mensajes)
+
+        self.usuario.refresh_from_db()
+        self.assertEqual(self.usuario.mensajes_usados_hoy, 0)
         mock_buscar.assert_not_called()
         mock_generar.assert_not_called()
 
@@ -599,6 +644,8 @@ class ChatIntentTest(TestCase):
         mock_generar.assert_called_once()
         self.assertEqual(response.json()['respuesta']['citas'][0]['ley'], 'Ley Federal')
         self.assertEqual(response.json()['respuesta']['citas'][0]['articulo'], '123')
+        self.usuario.refresh_from_db()
+        self.assertEqual(self.usuario.mensajes_usados_hoy, 1)
 
     @patch('apps.core.services.chat_service.generar_respuesta_ia_con_fallback')
     @patch('apps.core.services.chat_service.buscar_contexto_normativo')

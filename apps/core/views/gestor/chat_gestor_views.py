@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 
 
 @login_required
-@roles_requeridos(Usuario.Rol.GESTOR, Usuario.Rol.ADMINISTRADOR)
+@roles_requeridos(Usuario.Rol.GESTOR)
 def chat_gestor_interfaz_view(request, conversacion_id=None):
     usuario = request.user
     conversaciones = Conversacion.objects.filter(usuario=usuario).order_by('-fecha_creacion')
@@ -45,7 +45,7 @@ def chat_gestor_interfaz_view(request, conversacion_id=None):
 
 
 @login_required
-@roles_requeridos(Usuario.Rol.GESTOR, Usuario.Rol.ADMINISTRADOR)
+@roles_requeridos(Usuario.Rol.GESTOR)
 @require_POST
 def crear_nueva_conversacion_gestor_view(request):
     nueva_conv = Conversacion.objects.create(
@@ -56,7 +56,7 @@ def crear_nueva_conversacion_gestor_view(request):
 
 
 @login_required
-@roles_requeridos(Usuario.Rol.GESTOR, Usuario.Rol.ADMINISTRADOR)
+@roles_requeridos(Usuario.Rol.GESTOR)
 @require_POST
 def eliminar_conversacion_gestor_view(request, conversacion_id):
     conv = get_object_or_404(Conversacion, id=conversacion_id, usuario=request.user)
@@ -66,7 +66,7 @@ def eliminar_conversacion_gestor_view(request, conversacion_id):
 
 
 @login_required
-@roles_requeridos(Usuario.Rol.GESTOR, Usuario.Rol.ADMINISTRADOR)
+@roles_requeridos(Usuario.Rol.GESTOR)
 @require_POST
 def enviar_mensaje_gestor_api_view(request):
     usuario = request.user
