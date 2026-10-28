@@ -6,16 +6,17 @@
 [![Django](https://img.shields.io/badge/Django-5.x-green.svg)](https://www.djangoproject.com/)
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16%20%2B%20pgvector-blue.svg)](https://github.com/pgvector/pgvector)
 [![TailwindCSS](https://img.shields.io/badge/Tailwind-CSS%20Standalone-38bdf8.svg)](https://tailwindcss.com/)
-[![Tests](https://img.shields.io/badge/Tests-35%20casos-informational.svg)]()
+[![Tests](https://img.shields.io/badge/Tests-42%20casos-informational.svg)]()
 [![Docker](https://img.shields.io/badge/Docker-Ready-2496ed.svg)](https://www.docker.com/)
 
 ---
 
-## Características Principales dependencias
+## Características Principales
 * **Acceso por roles:** El middleware requiere inicio de sesión para las vistas privadas; login, registro y archivos estáticos son públicos. Las vistas restringen operaciones de administrador, gestor y usuario.
 * **Procesamiento de PDF sin archivo permanente:** El servicio procesa el archivo recibido y guarda metadatos y fragmentos vectoriales; la aplicación no conserva el PDF como documento consultable.
 * **Carga Completa y Deduplicación por Contenido:** Se extrae e indexa todo el texto legible del PDF. El sistema compara el hash del texto extraído, por lo que no vuelve a vectorizar una ley sin cambios aunque el archivo tenga metadatos PDF distintos; al editar una ley, conserva sus fragmentos existentes cuando el contenido no cambió. También conserva el hash binario para reconocer cargas históricas idénticas.
-* **Fragmentación estructurada:** Segmentación del texto extraído respetando párrafos y oraciones, con solapamiento y límites máximos por fragmento. Las unidades extensas se dividen en límites de palabra.
+* **Fragmentación estructurada:** Segmentación del texto extraído respetando párrafos y oraciones, con solapamiento y límites máximos por fragmento. Las unidades extensas se dividen en límites de palabra y reconoce encabezados numerados y transitorios nominales usados por el DOF.
+* **Búsqueda de tablas insensible a acentos:** Los buscadores de usuarios y leyes normalizan automáticamente acentos en la consulta y en los datos, por lo que «Comun» y «Común» producen coincidencias equivalentes.
 * **Carga cómoda de archivos:** El gestor puede seleccionar el PDF desde el explorador o arrastrarlo y soltarlo en el formulario de carga o actualización.
 * **Embeddings Locales:** Generación de representaciones vectoriales densas de 768 dimensiones ejecutada en el backend local utilizando `sentence-transformers` (`paraphrase-multilingual-mpnet-base-v2`), eliminando costos y cuotas externas para la indexación.
 * **Índices Vectoriales HNSW en `pgvector`:** Índice `HnswIndex` (`vector_cosine_ops`) para recuperar candidatos por distancia coseno.
@@ -77,7 +78,7 @@ El sistema clasifica primero el mensaje: los saludos y las cortesías se respond
 │   │   ├── decorators.py           # @roles_requeridos para control de acceso RBAC
 │   │   ├── middleware.py           # AutenticacionRequeridaMiddleware (Zero-Trust)
 │   │   ├── models.py               # Usuario, LeyFederal, FragmentoNormativo, Conversacion, Mensaje, RegistroFalloAPI
-│   │   ├── tests.py                # Suite de 35 casos de prueba
+│   │   ├── tests.py                # Suite de 42 casos de prueba
 │   │   ├── urls.py
 │   │   └── __init__.py
 │   └── __init__.py
@@ -184,7 +185,7 @@ Abre tu navegador e ingresa a: **[http://localhost:8000](http://localhost:8000)*
 
 ## Ejecución de Pruebas Automatizadas
 
-El proyecto incluye **35 casos de prueba** para cuotas, middleware, permisos por rol, procesamiento y deduplicación de PDF, fallback de proveedores y búsqueda híbrida:
+El proyecto incluye **42 casos de prueba** para cuotas, middleware, permisos por rol, procesamiento y deduplicación de PDF, encabezados transitorios, fallback de proveedores y búsqueda híbrida:
 
 ```bash
 docker-compose exec web python manage.py test apps.core

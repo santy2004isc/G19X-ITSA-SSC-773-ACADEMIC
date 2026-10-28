@@ -190,6 +190,13 @@ class ControlDeRolesTest(TestCase):
             ['usuario@test.com'],
         )
 
+        response = self.client.get(reverse('admin_dashboard'), {'q': 'Comun'})
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            [usuario.correo_electronico for usuario in response.context['usuarios']],
+            ['usuario@test.com'],
+        )
+
         response = self.client.get(reverse('admin_dashboard'), {'q': 'Usuario'})
         self.assertEqual(
             [usuario.correo_electronico for usuario in response.context['usuarios']],
@@ -364,6 +371,27 @@ class ControlDeRolesTest(TestCase):
         )
         self.assertEqual(mock_embedding.call_count, 4)
 
+    @patch('apps.core.views.gestor.gestor_views.generar_vector_embedding', return_value=[0.0] * 768)
+    def test_articulo_anterior_a_transitorios_mismo_fragmento_no_es_transitorio(self, mock_embedding):
+        from .views.gestor.gestor_views import _crear_fragmentos_normativos
+
+        ley = LeyFederal.objects.create(
+            nombre='Ley con título y transitorios juntos',
+            fecha_publicacion=timezone.now().date(),
+            hash_documento='4' * 64,
+        )
+        chunks = [
+            'Artículo 123. Última disposición ordinaria.\nTRANSITORIOS',
+            'Artículo Primero.- Entrada en vigor.',
+        ]
+
+        fragmentos = _crear_fragmentos_normativos(ley, chunks)
+
+        self.assertEqual(
+            [fragmento.articulo for fragmento in fragmentos],
+            ['123', 'Primero Transitorio'],
+        )
+
 
 class PDFProcessorTest(TestCase):
     """
@@ -400,6 +428,11 @@ class PDFProcessorTest(TestCase):
         self.assertEqual(len(chunks), 2)
         self.assertEqual(extraer_articulo_fragmento(chunks[0]), "1")
         self.assertEqual(extraer_articulo_fragmento(chunks[1]), "2 Bis")
+
+    def test_extrae_encabezados_transitorios_con_nombre(self):
+        self.assertEqual(extraer_articulo_fragmento("Artículo Primero.- Entrada en vigor."), "Primero")
+        self.assertEqual(extraer_articulo_fragmento("PRIMERO.- Vigencia."), "Primero")
+        self.assertEqual(extraer_articulo_fragmento("Artículo Único.- Derogaciones."), "Único")
 
     def test_extrae_articulos_ordinales_y_sufijos(self):
         self.assertEqual(

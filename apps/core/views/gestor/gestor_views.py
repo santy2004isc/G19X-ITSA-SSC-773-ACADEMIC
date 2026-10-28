@@ -28,14 +28,33 @@ def _crear_fragmentos_normativos(ley, chunks):
     articulo_actual = ""
     en_transitorios = False
     for chunk in chunks:
-        if re.search(r"^[ \t]*TRANSITORIOS\b", chunk, re.IGNORECASE | re.MULTILINE):
+        coincidencias_articulo = []
+        transitorio = re.search(r"^[ \t]*TRANSITORIOS\b", chunk, re.IGNORECASE | re.MULTILINE)
+        encabezado = extraer_articulo_fragmento(chunk)
+        # Si el encabezado y «TRANSITORIOS» están juntos, el artículo anterior
+        # al título no pertenece a los transitorios.
+        if transitorio and encabezado:
+            coincidencias_articulo = list(re.finditer(
+                r"^[ \t]*(?:Artículo|ARTÍCULO)[ \t]+(?:\d+|Primero|Segundo|Tercero|Cuarto|Quinto|"
+                r"Sexto|Séptimo|Octavo|Noveno|Décimo|Undécimo|Duodécimo|Único)\b|"
+                r"^[ \t]*(?:Primero|Segundo|Tercero|Cuarto|Quinto|Sexto|Séptimo|Octavo|"
+                r"Noveno|Décimo|Undécimo|Duodécimo|Único)[ \t]*(?:\.-|\.)",
+                chunk,
+                re.IGNORECASE | re.MULTILINE,
+            ))
+            if coincidencias_articulo:
+                en_transitorios = True
+        elif transitorio:
             en_transitorios = True
 
         articulo_detectado = extraer_articulo_fragmento(chunk)
         if articulo_detectado:
+            articulo_es_transitorio = en_transitorios
+            if transitorio and coincidencias_articulo and coincidencias_articulo[-1].start() < transitorio.start():
+                articulo_es_transitorio = False
             articulo_actual = (
                 f"{articulo_detectado} Transitorio"
-                if en_transitorios
+                if articulo_es_transitorio
                 else articulo_detectado
             )
 
@@ -122,12 +141,13 @@ def gestor_dashboard_view(request):
         class Unaccent(Func):
             function = 'unaccent'
             template = "%(function)s(%(expressions)s)"
+        consulta_sin_acentos = Unaccent(Value(query.lower()))
         leyes = leyes.annotate(
             nombre_sin_acentos=Unaccent(Lower('nombre')),
             siglas_sin_acentos=Unaccent(Lower('siglas')),
         ).filter(
-            Q(nombre_sin_acentos__contains=Unaccent(Value(query.lower()))) |
-            Q(siglas_sin_acentos__contains=Unaccent(Value(query.lower())))
+            Q(nombre_sin_acentos__contains=consulta_sin_acentos) |
+            Q(siglas_sin_acentos__contains=consulta_sin_acentos)
         )
 
     if campo_orden:

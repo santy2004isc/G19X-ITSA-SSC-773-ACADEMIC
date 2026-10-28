@@ -7,19 +7,21 @@ from sentence_transformers import SentenceTransformer
 
 # Cargador perezoso para el modelo sentence-transformers (768 dimensiones) (RF-2.3)
 _embedding_model = None
+_IDENTIFICADORES_TRANSITORIOS = (
+    "Primero|Segundo|Tercero|Cuarto|Quinto|Sexto|Séptimo|Octavo|Noveno|Décimo|"
+    "Undécimo|Duodécimo|Décimo Primero|Décimo Segundo|Único"
+)
+# Los encabezados «PRIMERO.-» y «Artículo Único.-» suelen usarse sin «Artículo».
 _PATRON_ENCABEZADO_ARTICULO = (
-    r"^[ \t]*(?:Artículo|ARTÍCULO)[ \t]+"
-    r"(\d+)([oº°])?(?:[ \t]+(?i:Bis|Ter|Quáter))?(?!\w)(?:\.-|\.)"
+    r"^[ \t]*(?:"
+    r"(?:Artículo|ARTÍCULO)[ \t]+(?:(?P<numero>\d+)(?P<ordinal>[oº°])?"
+    r"(?:[ \t]+(?P<modificador>(?i:Bis|Ter|Quáter)))?|"
+    r"(?P<nombre_articulo>(?i:" + _IDENTIFICADORES_TRANSITORIOS + r")))"
+    r"|(?P<nombre_solo>(?i:" + _IDENTIFICADORES_TRANSITORIOS + r"))"
+    r"[ \t]*)(?!\w)(?:\.-|\.)"
 )
-_ENCABEZADO_ARTICULO = re.compile(
-    _PATRON_ENCABEZADO_ARTICULO,
-    re.MULTILINE,
-)
-_INICIO_ARTICULO = re.compile(
-    r"(?=^[ \t]*(?:Artículo|ARTÍCULO)[ \t]+"
-    r"\d+(?:[oº°])?(?:[ \t]+(?i:Bis|Ter|Quáter))?(?!\w)(?:\.-|\.))",
-    re.MULTILINE,
-)
+_ENCABEZADO_ARTICULO = re.compile(_PATRON_ENCABEZADO_ARTICULO, re.MULTILINE)
+_INICIO_ARTICULO = re.compile(r"(?=" + _PATRON_ENCABEZADO_ARTICULO + r")", re.MULTILINE)
 
 
 def extraer_articulo_fragmento(texto):
@@ -29,8 +31,14 @@ def extraer_articulo_fragmento(texto):
         return ""
 
     encabezado = encabezados[-1]
-    numero, ordinal, modificador = encabezado.groups()
-    identificador = f"{numero}{ordinal or ''}"
+    grupos = encabezado.groupdict()
+    identificador = grupos["numero"]
+    if not identificador:
+        identificador = grupos["nombre_articulo"] or grupos["nombre_solo"] or ""
+        return identificador.title()
+
+    identificador += grupos["ordinal"] or ""
+    modificador = grupos["modificador"]
     return f"{identificador} {modificador.title()}" if modificador else identificador
 
 

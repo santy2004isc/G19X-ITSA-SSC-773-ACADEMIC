@@ -1,7 +1,8 @@
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
-from django.db.models import Count, Q
+from django.db.models import Count, Q, Func, Value
+from django.db.models.functions import Lower
 from functools import wraps
 from ...models import Usuario
 from ...forms.admin_forms import CrearUsuarioAdminForm, EditarUsuarioAdminForm
@@ -35,10 +36,19 @@ def admin_dashboard_view(request):
 
     usuarios = Usuario.objects.exclude(id=request.user.id).filter(is_superuser=False)
     if query:
-        usuarios = usuarios.filter(
-            Q(nombre__icontains=query) |
-            Q(apellido__icontains=query) |
-            Q(correo_electronico__icontains=query)
+        class Unaccent(Func):
+            function = 'unaccent'
+            template = "%(function)s(%(expressions)s)"
+
+        consulta_sin_acentos = Unaccent(Value(query.lower()))
+        usuarios = usuarios.annotate(
+            nombre_sin_acentos=Unaccent(Lower('nombre')),
+            apellido_sin_acentos=Unaccent(Lower('apellido')),
+            correo_sin_acentos=Unaccent(Lower('correo_electronico')),
+        ).filter(
+            Q(nombre_sin_acentos__contains=consulta_sin_acentos) |
+            Q(apellido_sin_acentos__contains=consulta_sin_acentos) |
+            Q(correo_sin_acentos__contains=consulta_sin_acentos)
         )
     if campo_orden:
         prefijo_orden = '' if direccion == 'asc' else '-'
