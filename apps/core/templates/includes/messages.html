@@ -1,17 +1,27 @@
 {% if messages %}
 <div id="messages-container" class="message-toast-list" aria-live="polite" aria-atomic="false">
     {% for message in messages %}
-    <div role="alert" class="message-toast {% if 'error' in message.tags %}message-toast-error{% elif 'success' in message.tags %}message-toast-success{% elif 'warning' in message.tags %}message-toast-warning{% else %}message-toast-info{% endif %}">
-        {{ message }}
+    <div data-message-toast data-toast-duration="8000" class="message-toast {% if 'error' in message.tags %}message-toast-error{% elif 'success' in message.tags %}message-toast-success{% elif 'warning' in message.tags %}message-toast-warning{% else %}message-toast-info{% endif %}" {% if 'error' in message.tags %}role="alert"{% else %}role="status"{% endif %}>
+        <span class="message-toast-icon" aria-hidden="true">
+            {% if 'error' in message.tags %}
+            <svg viewBox="0 0 24 24"><path d="M12 9v4m0 4h.01M10.3 3.9 1.8 18.2A2 2 0 0 0 3.5 21h17a2 2 0 0 0 1.7-2.8L13.7 3.9a2 2 0 0 0-3.4 0Z"/></svg>
+            {% elif 'success' in message.tags %}
+            <svg viewBox="0 0 24 24"><path d="m5 12 4 4L19 6"/></svg>
+            {% elif 'warning' in message.tags %}
+            <svg viewBox="0 0 24 24"><path d="M12 9v4m0 4h.01M10.3 3.9 1.8 18.2A2 2 0 0 0 3.5 21h17a2 2 0 0 0 1.7-2.8L13.7 3.9a2 2 0 0 0-3.4 0Z"/></svg>
+            {% else %}
+            <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 11v5m0-8h.01"/></svg>
+            {% endif %}
+        </span>
+        <span class="message-toast-body">
+            <strong class="message-toast-title">{% if 'error' in message.tags %}No se pudo completar{% elif 'success' in message.tags %}Listo{% elif 'warning' in message.tags %}Atención{% else %}Información{% endif %}</strong>
+            <span class="message-toast-text">{{ message }}</span>
+        </span>
+        <button type="button" class="message-toast-close" data-toast-dismiss aria-label="Cerrar aviso" title="Cerrar aviso">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m18 6-12 12M6 6l12 12"/></svg>
+        </button>
+        <span class="message-toast-progress" aria-hidden="true"></span>
     </div>
     {% endfor %}
 </div>
-<script>
-    window.setTimeout(function () {
-        const container = document.getElementById('messages-container');
-        if (!container) return;
-        container.classList.add('message-toast-list-hidden');
-        window.setTimeout(function () { container.remove(); }, 500);
-    }, 8000);
-</script>
 {% endif %}

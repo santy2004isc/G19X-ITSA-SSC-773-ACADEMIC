@@ -206,7 +206,7 @@
         } catch (error) {
             pendingMessage.remove();
             chatInput.value = message;
-            alert(error.message || 'No se pudo conectar con el asistente. Intentalo de nuevo.');
+            window.showAppToast(error.message || 'No se pudo conectar con el asistente. Intentalo de nuevo.', 'error');
         } finally {
             thinkingIndicator.classList.add('hidden');
             chatInput.disabled = false;

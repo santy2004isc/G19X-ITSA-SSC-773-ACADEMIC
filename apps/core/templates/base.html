@@ -35,6 +35,94 @@
     </div>
     {% endif %}
 
+    <script>
+        (function () {
+            function container() {
+                let node = document.getElementById('messages-container');
+                if (!node) {
+                    node = document.createElement('div');
+                    node.id = 'messages-container';
+                    node.className = 'message-toast-list';
+                    node.setAttribute('aria-live', 'polite');
+                    node.setAttribute('aria-atomic', 'false');
+                    document.body.appendChild(node);
+                }
+                return node;
+            }
+
+            function dismiss(toast) {
+                if (!toast || toast.classList.contains('is-dismissing')) return;
+                const parent = toast.parentElement;
+                toast.classList.add('is-dismissing');
+                window.setTimeout(function () {
+                    toast.remove();
+                    if (parent && !parent.children.length) parent.remove();
+                }, 240);
+            }
+
+            function startTimer(toast) {
+                window.clearTimeout(toast.dismissTimer);
+                const duration = Number(toast.dataset.toastDuration) || 8000;
+                toast.style.setProperty('--toast-duration', duration + 'ms');
+                toast.classList.remove('is-paused');
+                toast.dismissTimer = window.setTimeout(function () { dismiss(toast); }, duration);
+            }
+
+            function prepare(toast) {
+                toast.querySelector('[data-toast-dismiss]')?.addEventListener('click', function () { dismiss(toast); });
+                toast.addEventListener('mouseenter', function () {
+                    window.clearTimeout(toast.dismissTimer);
+                    toast.classList.add('is-paused');
+                });
+                toast.addEventListener('mouseleave', function () { startTimer(toast); });
+                startTimer(toast);
+            }
+
+            document.querySelectorAll('[data-message-toast]').forEach(prepare);
+
+            window.showAppToast = function (message, type, duration) {
+                const kinds = {
+                    error: ['No se pudo completar', 'message-toast-error', '<path d="M12 9v4m0 4h.01M10.3 3.9 1.8 18.2A2 2 0 0 0 3.5 21h17a2 2 0 0 0 1.7-2.8L13.7 3.9a2 2 0 0 0-3.4 0Z"/>'],
+                    success: ['Listo', 'message-toast-success', '<path d="m5 12 4 4L19 6"/>'],
+                    warning: ['Atención', 'message-toast-warning', '<path d="M12 9v4m0 4h.01M10.3 3.9 1.8 18.2A2 2 0 0 0 3.5 21h17a2 2 0 0 0 1.7-2.8L13.7 3.9a2 2 0 0 0-3.4 0Z"/>'],
+                    info: ['Información', 'message-toast-info', '<circle cx="12" cy="12" r="9"/><path d="M12 11v5m0-8h.01"/>']
+                };
+                const kind = kinds[type] ? type : 'info';
+                const toast = document.createElement('div');
+                toast.className = 'message-toast ' + kinds[kind][1];
+                toast.dataset.messageToast = '';
+                toast.dataset.toastDuration = String(duration || 8000);
+                toast.setAttribute('role', kind === 'error' ? 'alert' : 'status');
+                const icon = document.createElement('span');
+                icon.className = 'message-toast-icon';
+                icon.setAttribute('aria-hidden', 'true');
+                icon.innerHTML = '<svg viewBox="0 0 24 24">' + kinds[kind][2] + '</svg>';
+                const body = document.createElement('span');
+                body.className = 'message-toast-body';
+                const title = document.createElement('strong');
+                title.className = 'message-toast-title';
+                title.textContent = kinds[kind][0];
+                const text = document.createElement('span');
+                text.className = 'message-toast-text';
+                text.textContent = String(message || '');
+                body.append(title, text);
+                const close = document.createElement('button');
+                close.type = 'button';
+                close.className = 'message-toast-close';
+                close.dataset.toastDismiss = '';
+                close.setAttribute('aria-label', 'Cerrar aviso');
+                close.title = 'Cerrar aviso';
+                close.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m18 6-12 12M6 6l12 12"/></svg>';
+                const progress = document.createElement('span');
+                progress.className = 'message-toast-progress';
+                progress.setAttribute('aria-hidden', 'true');
+                toast.append(icon, body, close, progress);
+                container().prepend(toast);
+                prepare(toast);
+            };
+        })();
+    </script>
+
     <!-- Script Global para Mostrar/Ocultar Contraseñas -->
     <script>
         (function () {

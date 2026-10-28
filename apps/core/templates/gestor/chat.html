@@ -249,7 +249,7 @@
         } catch (err) {
             mensajePendiente.remove();
             mensajeInput.value = mensaje;
-            alert(err.message || 'Error de conexión con el servidor.');
+            window.showAppToast(err.message || 'Error de conexión con el servidor.', 'error');
         } finally {
             respuestaPendiente.classList.add('hidden');
             mensajeInput.disabled = false;
