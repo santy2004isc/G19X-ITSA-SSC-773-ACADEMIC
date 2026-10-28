@@ -1,0 +1,43 @@
+<aside class="role-sidebar" aria-label="Navegación principal">
+    <div class="role-sidebar-brand">
+        <span class="role-sidebar-mark" aria-hidden="true">A</span>
+        <span class="role-sidebar-label"><strong>ACCN</strong><small>Consulta normativa</small></span>
+        <button type="button" class="role-sidebar-collapse" data-sidebar-collapse aria-label="Contraer o expandir navegación" aria-expanded="true" title="Contraer o expandir navegación">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>
+        </button>
+    </div>
+    <nav class="role-sidebar-nav">
+        <p class="role-sidebar-section role-sidebar-label">MENÚ PRINCIPAL</p>
+        {% if request.user.rol == 'ADMINISTRADOR' %}
+        <a href="{% url 'admin_dashboard' %}" class="role-sidebar-link {% if request.resolver_match.url_name == 'admin_dashboard' or request.resolver_match.url_name == 'admin_crear_usuario' or request.resolver_match.url_name == 'admin_editar_usuario' %}is-active{% endif %}" title="Usuarios">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2M10 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8Zm10 10v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg><span class="role-sidebar-label">Usuarios</span>
+        </a>
+        <a href="{% url 'admin_fallos_api' %}" class="role-sidebar-link {% if request.resolver_match.url_name == 'admin_fallos_api' %}is-active{% endif %}" title="Auditoría de APIs">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 8v4l3 2m6-2a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"/></svg><span class="role-sidebar-label">Auditoría de APIs</span>
+        </a>
+        <a href="{% url 'admin_perfil' %}" class="role-sidebar-link {% if request.resolver_match.url_name == 'admin_perfil' %}is-active{% endif %}" title="Mi perfil">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 21a8 8 0 0 0-16 0m8-10a5 5 0 1 0 0-10 5 5 0 0 0 0 10Z"/></svg><span class="role-sidebar-label">Mi perfil</span>
+        </a>
+        {% else %}
+        <a href="{% url 'gestor_dashboard' %}" class="role-sidebar-link {% if request.resolver_match.url_name == 'gestor_dashboard' or request.resolver_match.url_name == 'gestor_editar_ley' %}is-active{% endif %}" title="Base de conocimiento">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2Z"/></svg><span class="role-sidebar-label">Base de conocimiento</span>
+        </a>
+        <a href="{% url 'gestor_cargar_documento' %}" class="role-sidebar-link {% if request.resolver_match.url_name == 'gestor_cargar_documento' %}is-active{% endif %}" title="Cargar documento">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4m4-5 5-5 5 5m-5-5v12"/></svg><span class="role-sidebar-label">Cargar documento</span>
+        </a>
+        <a href="{% url 'gestor_chat_interfaz' %}" class="role-sidebar-link {% if request.resolver_match.url_name == 'gestor_chat_interfaz' or request.resolver_match.url_name == 'gestor_chat_conversacion' %}is-active{% endif %}" title="Chat técnico">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 11.5a8.5 8.5 0 0 1-8.5 8.5 9 9 0 0 1-4-.9L3 21l1.9-5.5a9 9 0 0 1-.9-4A8.5 8.5 0 0 1 12.5 3h.5a8.5 8.5 0 0 1 8 8v.5Z"/></svg><span class="role-sidebar-label">Chat técnico</span>
+        </a>
+        <a href="{% url 'gestor_perfil' %}" class="role-sidebar-link {% if request.resolver_match.url_name == 'gestor_perfil' %}is-active{% endif %}" title="Mi perfil">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 21a8 8 0 0 0-16 0m8-10a5 5 0 1 0 0-10 5 5 0 0 0 0 10Z"/></svg><span class="role-sidebar-label">Mi perfil</span>
+        </a>
+        {% endif %}
+    </nav>
+    <div class="role-sidebar-bottom">
+        <button type="button" data-theme-toggle class="role-sidebar-link role-theme-toggle" aria-label="Cambiar a tema oscuro" aria-pressed="false" title="Cambiar tema">
+            <svg class="theme-icon-sun" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M4.93 4.93l1.42 1.42m11.3 11.3 1.42 1.42M2 12h2m16 0h2M4.93 19.07l1.42-1.42m11.3-11.3 1.42-1.42"/></svg><span class="role-sidebar-label">Tema oscuro</span>
+        </button>
+        <div class="role-sidebar-user"><span class="role-user-avatar">{{ request.user.nombre|slice:":1"|upper }}</span><span class="role-sidebar-label"><strong>{{ request.user.nombre }} {{ request.user.apellido }}</strong><small>{{ request.user.get_rol_display }}</small></span></div>
+        <a href="{% url 'logout' %}" class="role-sidebar-link role-logout" title="Cerrar sesión"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4m7 14 5-5-5-5m5 5H9"/></svg><span class="role-sidebar-label">Cerrar sesión</span></a>
+    </div>
+</aside>

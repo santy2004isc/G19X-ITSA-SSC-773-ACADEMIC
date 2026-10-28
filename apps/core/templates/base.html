@@ -20,17 +20,27 @@
    
     {% include 'includes/messages.html' %}
 
+    {% if request.user.is_authenticated and request.user.rol == 'ADMINISTRADOR' or request.user.is_authenticated and request.user.rol == 'GESTOR' %}
+    <div class="role-app-shell">
+        {% include 'includes/role_sidebar.html' %}
+        <div class="role-app-content">
+    {% endif %}
     {% block content %}{% endblock %}
+    {% if request.user.is_authenticated and request.user.rol == 'ADMINISTRADOR' or request.user.is_authenticated and request.user.rol == 'GESTOR' %}
+        </div>
+    </div>
+    {% endif %}
 
     <!-- Script Global para Mostrar/Ocultar Contraseñas -->
     <script>
         (function () {
-            const botonesTema = Array.from(document.querySelectorAll('[data-theme-toggle], #themeToggle'));
+            const botonesTema = Array.from(document.querySelectorAll('[data-theme-toggle]'));
             const actualizarTema = function (tema) {
                 const oscuro = tema === 'dark';
                 document.documentElement.dataset.theme = oscuro ? 'dark' : 'light';
                 botonesTema.forEach(function (botonTema) {
-                    botonTema.textContent = oscuro ? 'Tema claro' : 'Tema oscuro';
+                    const etiqueta = botonTema.querySelector('.role-sidebar-label');
+                    if (etiqueta) etiqueta.textContent = oscuro ? 'Tema claro' : 'Tema oscuro';
                     botonTema.setAttribute('aria-label', oscuro ? 'Cambiar a tema claro' : 'Cambiar a tema oscuro');
                     botonTema.setAttribute('aria-pressed', String(oscuro));
                 });
@@ -42,6 +52,21 @@
                     actualizarTema(tema);
                     try { localStorage.setItem('accn-theme', tema); } catch (_) { /* El tema sigue activo durante esta visita. */ }
                 });
+            });
+        })();
+
+        (function () {
+            const shell = document.querySelector('.role-app-shell');
+            const toggle = document.querySelector('[data-sidebar-collapse]');
+            if (!shell || !toggle) return;
+            try {
+                if (localStorage.getItem('accn-sidebar-collapsed') === 'true') shell.classList.add('is-collapsed');
+            } catch (_) {}
+            toggle.setAttribute('aria-expanded', String(!shell.classList.contains('is-collapsed')));
+            toggle.addEventListener('click', function () {
+                shell.classList.toggle('is-collapsed');
+                toggle.setAttribute('aria-expanded', String(!shell.classList.contains('is-collapsed')));
+                try { localStorage.setItem('accn-sidebar-collapsed', String(shell.classList.contains('is-collapsed'))); } catch (_) {}
             });
         })();
 

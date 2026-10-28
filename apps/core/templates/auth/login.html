@@ -3,7 +3,6 @@
 {% block title %}Iniciar Sesión - ACCN{% endblock %}
 
 {% block content %}
-<button id="themeToggle" type="button" class="{% if request.resolver_match.url_name == 'usuario_perfil' or request.resolver_match.url_name == 'gestor_perfil' or request.resolver_match.url_name == 'admin_perfil' or request.resolver_match.url_name == 'chat_interfaz' or request.resolver_match.url_name == 'chat_conversacion' or request.resolver_match.url_name == 'gestor_chat_interfaz' or request.resolver_match.url_name == 'gestor_chat_conversacion' %}hidden{% else %}theme-toggle{% endif %}" aria-label="Cambiar a tema oscuro" aria-pressed="false" title="Cambiar tema">Tema oscuro</button>
 <div class="flex-1 flex items-center justify-center p-6">
     <div class="form-card w-full max-w-md bg-white rounded-xl shadow-lg border border-slate-200 p-8">
         
