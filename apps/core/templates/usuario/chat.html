@@ -1,85 +1,12 @@
 {% extends 'base.html' %}
 
-{% block title %}Asistente Jurídico - ACCN{% endblock %}
+{% block title %}Asistente jurídico | Consulta normativa{% endblock %}
 
 {% block content %}
 <div class="chat-layout h-screen flex bg-slate-100 overflow-hidden">
     
-    <!-- Sidebar -->
-    <aside id="sidebar" class="w-72 bg-slate-900 text-slate-300 flex flex-col border-r border-slate-800 flex-shrink-0 transition-all duration-300 ease-in-out">
-        <div class="p-4 border-b border-slate-800 flex items-center justify-between">
-            <div class="flex items-center space-x-2">
-                <div class="w-8 h-8 text-blue-600 font-bold flex items-center justify-center text-xs">ACCN</div>
-                <span class="font-bold text-white text-sm">Agente Legal</span>
-            </div>
-            <form method="post" action="{% url 'chat_nueva_conversacion' %}">
-                {% csrf_token %}
-                <button type="submit" title="Nueva Consulta" class="p-1.5 hover:bg-slate-800 text-slate-300 hover:text-white rounded-lg transition">
-                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
-                </button>
-            </form>
-        </div>
-
-        <!-- Indicador de Cuota -->
-        <div class="px-4 py-2 bg-slate-950/60 border-b border-slate-800 flex items-center justify-between text-[11px]">
-            <span class="text-slate-400">Cuota diaria:</span>
-            <span id="badgeCuota" class="font-semibold text-blue-400">{{ mensajes_restantes }} / {{ request.user.cuota_diaria_mensajes }} disponibles</span>
-        </div>
-
-        <!-- Historial -->
-        <div class="flex-1 overflow-y-auto p-3 space-y-1">
-            <p class="text-xs font-semibold text-slate-500 uppercase px-2 mb-2">Consultas Registradas</p>
-
-            {% for c in conversaciones %}
-            <div class="group flex items-center justify-between rounded-lg px-3 py-2 text-xs font-medium transition {% if conversacion_actual and conversacion_actual.id == c.id %}bg-blue-600 text-white{% else %}hover:bg-slate-800 text-slate-400 hover:text-slate-200{% endif %}">
-                <a href="{% url 'chat_conversacion' c.id %}" class="flex-1 truncate mr-2">
-                    {{ c.titulo }}
-                </a>
-                <form method="post" action="{% url 'chat_eliminar_conversacion' c.id %}" class="opacity-0 group-hover:opacity-100 transition">
-                    {% csrf_token %}
-                    <button type="submit" onclick="return confirm('¿Eliminar esta conversación?');" class="text-slate-400 hover:text-red-400 p-1">
-                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
-                    </button>
-                </form>
-            </div>
-            {% empty %}
-            <p class="text-xs text-slate-500 text-center py-4">Sin historial.</p>
-            {% endfor %}
-        </div>
-
-        <!-- Footer Usuario -->
-        <div class="p-3 border-t border-slate-800 flex items-center justify-between bg-slate-950/50">
-            <a href="{% url 'usuario_perfil' %}" class="flex items-center space-x-2 text-xs font-medium text-slate-300 hover:text-white truncate">
-                <div class="user-avatar-initial w-7 h-7 rounded-full flex items-center justify-center font-bold text-xs" aria-hidden="true">
-                    {{ request.user.nombre|slice:":1" }}
-                </div>
-                <span class="truncate">{{ request.user.nombre }} {{ request.user.apellido }}</span>
-            </a>
-            <a href="{% url 'logout' %}" title="Cerrar Sesión" class="text-slate-500 hover:text-red-400 p-1.5 transition">
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/></svg>
-            </a>
-        </div>
-    </aside>
-
     <!-- Main Chat (min-w-0 evita que los elementos hijos rompan el ancho en layouts Flex) -->
     <main class="flex-1 flex flex-col bg-white min-w-0">
-        <header class="border-b border-slate-200 px-6 py-3.5 flex items-center justify-between bg-white shadow-sm">
-            <div class="flex items-center space-x-3">
-                <!-- Botón para Ocultar/Mostrar la Barra Lateral -->
-                <button id="toggleSidebar" class="p-1.5 text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-lg transition focus:outline-none" title="Ocultar/Mostrar menú">
-                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/>
-                    </svg>
-                </button>
-                <div>
-                    <h2 class="font-bold text-slate-800 text-sm" id="chatTitle">
-                        {% if conversacion_actual %}{{ conversacion_actual.titulo }}{% else %}Consulta Normativa{% endif %}
-                    </h2>
-                    <p class="text-xs text-slate-400">Sistema RAG de Leyes Federales</p>
-                </div>
-            </div>
-</header>
-
         <!-- Mensajes -->
         <div id="chatContainer" class="flex-1 overflow-y-auto p-6 space-y-4 bg-slate-50/50">
             {% if mensajes %}
@@ -142,8 +69,9 @@
         <!-- Formulario Chat -->
         <footer class="p-4 border-t border-slate-200 bg-white">
             <form id="chatForm" class="flex items-center space-x-3">
+                {% csrf_token %}
                 <input type="hidden" id="conversacionId" value="{{ conversacion_actual.id|default:'' }}">
-                <input type="text" id="chatInput" maxlength="4000" placeholder="Escriba su mensaje o pregunta legal..." class="flex-1 px-4 py-3 bg-slate-100 text-slate-800 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 focus:bg-white focus:outline-none transition">
+                <input type="text" id="chatInput" maxlength="4000" placeholder="Escribe tu pregunta sobre legislación vigente..." class="flex-1 px-4 py-3 bg-slate-100 text-slate-800 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 focus:bg-white focus:outline-none transition">
                 <button type="submit" id="btnEnviar" class="bg-blue-600 hover:bg-blue-700 text-white font-semibold px-5 py-3 rounded-xl text-sm shadow transition">
                     Enviar
                 </button>
@@ -153,189 +81,139 @@
 </div>
 
 <script>
-    // Control para Ocultar / Mostrar Sidebar
-    const toggleSidebarBtn = document.getElementById('toggleSidebar');
-    const sidebar = document.getElementById('sidebar');
-    if (window.matchMedia('(max-width: 767px)').matches) sidebar.classList.add('sidebar-hidden');
-
-    if (toggleSidebarBtn && sidebar) {
-        toggleSidebarBtn.addEventListener('click', () => {
-            sidebar.classList.toggle('-ml-72');
-            sidebar.classList.toggle('sidebar-hidden');
-        });
-    }
-
-    // Lógica del Chat
     const chatContainer = document.getElementById('chatContainer');
     const chatForm = document.getElementById('chatForm');
     const chatInput = document.getElementById('chatInput');
-    const conversacionIdInput = document.getElementById('conversacionId');
+    const conversationIdInput = document.getElementById('conversacionId');
     const thinkingIndicator = document.getElementById('thinkingIndicator');
-    const btnEnviar = document.getElementById('btnEnviar');
-    const emptyState = document.getElementById('emptyState');
-    const badgeCuota = document.getElementById('badgeCuota');
+    const sendButton = document.getElementById('btnEnviar');
+    const quotaBadge = document.getElementById('badgeCuota');
 
-    function scrollToBottom() {
-        chatContainer.scrollTop = chatContainer.scrollHeight;
+    function escapeHtml(value) {
+        return String(value ?? '').replace(/[&<>"']/g, function (character) {
+            return {'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[character];
+        });
     }
-    function renderizarMarkdown(texto) {
-        const escapar = valor => String(valor ?? '').replace(/[&<>"']/g, caracter => (
-            {'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[caracter]
-        ));
-        const inline = valor => escapar(valor)
+
+    function renderMarkdown(markdown) {
+        const lines = String(markdown ?? '').replace(/\r/g, '').split('\n');
+        const inline = value => escapeHtml(value)
             .replace(/`([^`]+)`/g, '<code class="rounded bg-slate-100 px-1 py-0.5 font-mono text-blue-800">$1</code>')
             .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
             .replace(/__(.+?)__/g, '<strong>$1</strong>')
             .replace(/(^|[^*])\*([^*\n]+)\*(?!\*)/g, '$1<em>$2</em>');
-        const escapar = valor => String(valor ?? '').replace(/[&<>"']/g, caracter => (
-        const salida = [];
-        const celdas = linea => linea.trim().replace(/^\|/, '').replace(/\|$/, '').split('|').map(celda => celda.trim());
-        const esSeparadorTabla = linea => celdas(linea).length > 1 && celdas(linea).every(celda => /^:?-{3,}:?$/.test(celda));
-        for (let i = 0; i < lineas.length;) {
-            if (!lineas[i].trim()) { i++; continue; }
-            if (i + 1 < lineas.length && lineas[i].includes('|') && esSeparadorTabla(lineas[i + 1])) {
-                const encabezados = celdas(lineas[i]);
-                i += 2;
-                const filas = [];
-                while (i < lineas.length && lineas[i].includes('|') && lineas[i].trim()) filas.push(celdas(lineas[i++]));
-                salida.push(`<div class="my-3 max-w-full overflow-x-auto rounded-lg border border-slate-200"><table class="w-full border-collapse text-left text-xs"><thead class="bg-slate-100 text-slate-700"><tr>${encabezados.map(celda => `<th class="border-b border-slate-200 px-3 py-2 font-semibold">${inline(celda)}</th>`).join('')}</tr></thead><tbody>${filas.map(fila => `<tr class="odd:bg-white even:bg-slate-50">${encabezados.map((_, indice) => `<td class="border-t border-slate-100 px-3 py-2 align-top">${inline(fila[indice] || '')}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`);
+        const cells = line => line.trim().replace(/^\|/, '').replace(/\|$/, '').split('|').map(cell => cell.trim());
+        const isTableSeparator = line => cells(line).length > 1 && cells(line).every(cell => /^:?-{3,}:?$/.test(cell));
+        const output = [];
+        let index = 0;
+
+        while (index < lines.length) {
+            if (!lines[index].trim()) { index++; continue; }
+            if (index + 1 < lines.length && lines[index].includes('|') && isTableSeparator(lines[index + 1])) {
+                const headings = cells(lines[index]);
+                index += 2;
+                const rows = [];
+                while (index < lines.length && lines[index].includes('|') && lines[index].trim()) rows.push(cells(lines[index++]));
+                output.push(`<div class="my-3 max-w-full overflow-x-auto rounded-lg border border-slate-200"><table class="w-full border-collapse text-left text-xs"><thead class="bg-slate-100 text-slate-700"><tr>${headings.map(cell => `<th class="border-b border-slate-200 px-3 py-2 font-semibold">${inline(cell)}</th>`).join('')}</tr></thead><tbody>${rows.map(row => `<tr>${headings.map((_, cellIndex) => `<td class="border-t border-slate-100 px-3 py-2 align-top">${inline(row[cellIndex] || '')}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`);
                 continue;
             }
-            const heading = lineas[i].match(/^(#{1,3})\s+(.+)$/);
+            const heading = lines[index].match(/^(#{1,3})\s+(.+)$/);
             if (heading) {
-                const nivel = heading[1].length;
-                salida.push(`<h${nivel + 2} class="mb-1 mt-3 font-bold text-slate-900">${inline(heading[2])}</h${nivel + 2}>`);
-                i++;
+                const level = heading[1].length + 2;
+                output.push(`<h${level} class="mb-1 mt-3 font-bold text-slate-900">${inline(heading[2])}</h${level}>`);
+                index++;
                 continue;
             }
-            if (/^\s*(?:[-*]|\d+\.)\s+/.test(lineas[i])) {
-                const numerada = /^\s*\d+\./.test(lineas[i]);
+            if (/^\s*(?:[-*]|\d+\.)\s+/.test(lines[index])) {
+                const ordered = /^\s*\d+\./.test(lines[index]);
                 const items = [];
-                while (i < lineas.length && /^\s*(?:[-*]|\d+\.)\s+/.test(lineas[i])) {
-                    items.push(lineas[i++].replace(/^\s*(?:[-*]|\d+\.)\s+/, ''));
+                while (index < lines.length && /^\s*(?:[-*]|\d+\.)\s+/.test(lines[index])) {
+                    items.push(lines[index++].replace(/^\s*(?:[-*]|\d+\.)\s+/, ''));
                 }
-                const tag = numerada ? 'ol' : 'ul';
-                salida.push(`<${tag} class="my-2 list-inside ${numerada ? 'list-decimal' : 'list-disc'} space-y-1 pl-2">${items.map(item => `<li>${inline(item)}</li>`).join('')}</${tag}>`);
+                const tag = ordered ? 'ol' : 'ul';
+                output.push(`<${tag} class="my-2 list-inside ${ordered ? 'list-decimal' : 'list-disc'} space-y-1 pl-2">${items.map(item => `<li>${inline(item)}</li>`).join('')}</${tag}>`);
                 continue;
             }
-            const parrafo = [];
-            while (i < lineas.length && lineas[i].trim() && !(i + 1 < lineas.length && lineas[i].includes('|') && esSeparadorTabla(lineas[i + 1])) && !/^(#{1,3})\s+/.test(lineas[i]) && !/^\s*(?:[-*]|\d+\.)\s+/.test(lineas[i])) {
-                parrafo.push(lineas[i++]);
+            const paragraph = [];
+            while (index < lines.length && lines[index].trim() && !(index + 1 < lines.length && lines[index].includes('|') && isTableSeparator(lines[index + 1])) && !/^(#{1,3})\s+/.test(lines[index]) && !/^\s*(?:[-*]|\d+\.)\s+/.test(lines[index])) {
+                paragraph.push(lines[index++]);
             }
-            salida.push(`<p class="my-2 whitespace-pre-wrap">${inline(parrafo.join('\n')).replace(/\n/g, '<br>')}</p>`);
+            output.push(`<p class="my-2 whitespace-pre-wrap">${inline(paragraph.join('\n')).replace(/\n/g, '<br>')}</p>`);
         }
-        return salida.join('');
+        return output.join('');
     }
 
-    document.querySelectorAll('#chatContainer .markdown-content').forEach(function(elemento) {
-        elemento.innerHTML = renderizarMarkdown(elemento.textContent);
+    function userMessageHtml(message, time) {
+        return `<div class="flex justify-end"><div class="max-w-xl break-words overflow-hidden rounded-2xl rounded-tr-none bg-blue-600 px-4 py-3 text-sm text-white shadow-sm"><p class="whitespace-pre-wrap break-words">${escapeHtml(message)}</p><span class="mt-1 block text-right text-[10px] text-blue-200">${escapeHtml(time)}</span></div></div>`;
+    }
+
+    function assistantMessageHtml(answer) {
+        const citations = Array.isArray(answer.citas) && answer.citas.length
+            ? `<div class="mt-2 space-y-1.5 rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs"><span class="block text-[10px] font-bold uppercase tracking-wider text-slate-700">Citas normativas:</span><ul class="list-inside list-disc space-y-1 break-words text-slate-600">${answer.citas.map(citation => `<li><strong>${escapeHtml(citation.ley)}</strong> (${escapeHtml(citation.siglas)}) - Art. ${escapeHtml(citation.articulo || '?')} - Ultima reforma: ${escapeHtml(citation.fecha_reforma)}</li>`).join('')}</ul></div>`
+            : '';
+        const provider = answer.proveedor
+            ? `IA: ${escapeHtml(answer.proveedor)}${answer.conmutado ? ' (Fallback)' : ''}`
+            : 'Asistente';
+        return `<div class="flex justify-start"><div class="max-w-2xl break-words overflow-hidden rounded-2xl rounded-tl-none border border-slate-200 bg-white p-4 text-sm text-slate-800 shadow-sm"><div class="flex items-center justify-between border-b border-slate-100 pb-1.5 text-xs"><span class="font-semibold text-blue-600">Respuesta del asistente</span><span class="text-[10px] text-slate-400">${provider}</span></div><div class="markdown-content leading-relaxed break-words">${renderMarkdown(answer.contenido)}</div>${citations}<span class="mt-1 block text-right text-[10px] text-slate-400">${escapeHtml(answer.fecha)}</span></div></div>`;
+    }
+
+    document.querySelectorAll('#chatContainer .markdown-content').forEach(function (element) {
+        element.innerHTML = renderMarkdown(element.textContent);
     });
-    scrollToBottom();
+    chatContainer.scrollTop = chatContainer.scrollHeight;
 
-    chatForm.addEventListener('submit', async function(e) {
-        e.preventDefault();
-        const mensaje = chatInput.value.trim();
-        if (!mensaje) return;
+    chatForm.addEventListener('submit', async function (event) {
+        event.preventDefault();
+        const message = chatInput.value.trim();
+        if (!message || sendButton.disabled) return;
 
-        if (emptyState) emptyState.remove();
-
-        // 1. Render usuario
-        const userMsgHtml = `
-            <div class="flex justify-end">
-                <div class="max-w-xl bg-blue-600 text-white rounded-2xl rounded-tr-none px-4 py-3 text-sm shadow-sm break-words overflow-hidden">
-                    <p class="whitespace-pre-wrap break-words">${escapeHtml(mensaje)}</p>
-                    <span class="block text-right text-[10px] text-blue-200 mt-1">${new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
-                </div>
-            </div>
-        `;
-        chatContainer.insertAdjacentHTML('beforeend', userMsgHtml);
+        const pendingMessage = document.createElement('div');
+        pendingMessage.dataset.pendingMessage = 'true';
+        pendingMessage.innerHTML = userMessageHtml(message, new Date().toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'}));
+        chatContainer.appendChild(pendingMessage);
         chatInput.value = '';
         chatInput.disabled = true;
-        btnEnviar.disabled = true;
-        btnEnviar.classList.add('opacity-60', 'cursor-not-allowed');
-        scrollToBottom();
-
+        sendButton.disabled = true;
+        sendButton.classList.add('opacity-60', 'cursor-not-allowed');
         thinkingIndicator.classList.remove('hidden');
+        chatContainer.scrollTop = chatContainer.scrollHeight;
 
         try {
+            const csrfToken = chatForm.querySelector('[name="csrfmiddlewaretoken"]')?.value || '';
             const response = await fetch("{% url 'chat_api_enviar' %}", {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRFToken': '{{ csrf_token }}'
-                },
+                headers: {'Content-Type': 'application/json', 'X-CSRFToken': csrfToken},
                 body: JSON.stringify({
-                    mensaje: mensaje,
-                    conversacion_id: conversacionIdInput.value || null
+                    mensaje: message,
+                    conversacion_id: conversationIdInput.value || null
                 })
             });
-
             const data = await response.json();
-            thinkingIndicator.classList.add('hidden');
-
-            if (response.ok && data.ok) {
-                if (!conversacionIdInput.value) {
-                    conversacionIdInput.value = data.conversacion_id;
-                    document.getElementById('chatTitle').innerText = data.conversacion_titulo;
-                }
-
-                // Actualizar cuota badge
-                if (badgeCuota) {
-                    badgeCuota.innerText = `${data.mensajes_restantes} / {{ request.user.cuota_diaria_mensajes }} disponibles`;
-                }
-
-                // Citas
-                let citasHtml = '';
-                if (data.respuesta.citas && data.respuesta.citas.length > 0) {
-                    citasHtml = `
-                        <div class="bg-slate-50 border border-slate-200 rounded-lg p-3 text-xs space-y-1.5 mt-2 break-words">
-                            <span class="font-bold text-slate-700 block uppercase tracking-wider text-[10px]">Citas Normativas:</span>
-                            <ul class="space-y-1 list-disc list-inside text-slate-600 break-words">
-                                ${data.respuesta.citas.map(c => `<li class="break-words"><strong>${escapeHtml(c.ley)}</strong> (${escapeHtml(c.siglas)}) - Art. ${escapeHtml(c.articulo || '—')} - Última Reforma: ${escapeHtml(c.fecha_reforma)}</li>`).join('')}
-                            </ul>
-                        </div>
-                    `;
-                }
-
-                // Render respuesta
-                const systemMsgHtml = `
-                    <div class="flex justify-start">
-                        <div class="max-w-2xl bg-white border border-slate-200 rounded-2xl rounded-tl-none p-4 text-sm text-slate-800 shadow-sm space-y-3 break-words overflow-hidden">
-                            <div class="flex items-center justify-between border-b border-slate-100 pb-1.5 text-xs">
-                                <span class="text-blue-600 font-semibold flex items-center space-x-1">
-                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
-                                    <span>Respuesta del asistente</span>
-                                </span>
-                                <span class="text-[10px] text-slate-400">${data.respuesta.proveedor ? 'IA: ' + escapeHtml(data.respuesta.proveedor) + (data.respuesta.conmutado ? ' (Fallback)' : '') : 'Asistente'}</span>
-                            </div>
-                            <div class="markdown-content leading-relaxed break-words">${renderizarMarkdown(data.respuesta.contenido)}</div>
-                            ${citasHtml}
-                            <span class="block text-right text-[10px] text-slate-400 mt-1">${data.respuesta.fecha}</span>
-                        </div>
-                    </div>
-                `;
-                chatContainer.insertAdjacentHTML('beforeend', systemMsgHtml);
-                scrollToBottom();
-
-            } else {
-                alert(data.error || 'No se pudo procesar la consulta.');
+            if (!response.ok || !data.ok || !data.respuesta) {
+                throw new Error(data.error || 'No se pudo procesar la consulta.');
             }
 
+            if (!conversationIdInput.value) {
+                window.location.assign(data.conversacion_url);
+                return;
+            }
+
+            const emptyState = document.getElementById('emptyState');
+            if (emptyState) emptyState.remove();
+            pendingMessage.outerHTML = userMessageHtml(data.pregunta.contenido, data.pregunta.fecha) + assistantMessageHtml(data.respuesta);
+            if (quotaBadge) quotaBadge.textContent = `${data.mensajes_restantes} / {{ request.user.cuota_diaria_mensajes }} restantes`;
+            chatContainer.scrollTop = chatContainer.scrollHeight;
         } catch (error) {
-            thinkingIndicator.classList.add('hidden');
-            alert(error.message || 'Error de conexión con el servidor.');
+            pendingMessage.remove();
+            chatInput.value = message;
+            alert(error.message || 'No se pudo conectar con el asistente. Intentalo de nuevo.');
         } finally {
+            thinkingIndicator.classList.add('hidden');
             chatInput.disabled = false;
-            btnEnviar.disabled = false;
-            btnEnviar.classList.remove('opacity-60', 'cursor-not-allowed');
+            sendButton.disabled = false;
+            sendButton.classList.remove('opacity-60', 'cursor-not-allowed');
             chatInput.focus();
         }
     });
-
-    function escapeHtml(text) {
-        const escapar = valor => String(valor ?? '').replace(/[&<>"']/g, caracter => (
-            {'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[caracter]
-        ));
-    }
 </script>
 {% endblock %}

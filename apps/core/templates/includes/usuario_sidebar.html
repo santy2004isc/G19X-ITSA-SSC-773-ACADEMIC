@@ -1,0 +1,50 @@
+<aside class="role-sidebar user-role-sidebar" aria-label="Navegación principal">
+    <div class="role-sidebar-brand">
+        <span class="role-sidebar-label"><strong>Consulta legal</strong><small>Asistente jurídico</small></span>
+        <button type="button" class="role-sidebar-collapse" data-sidebar-collapse aria-label="Contraer o expandir navegación" aria-expanded="true" title="Contraer o expandir navegación">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>
+        </button>
+    </div>
+    <nav class="role-sidebar-nav" aria-label="Secciones">
+        <a href="{% url 'chat_interfaz' %}" class="role-sidebar-link {% if request.resolver_match.url_name == 'chat_interfaz' or request.resolver_match.url_name == 'chat_conversacion' %}is-active{% endif %}" title="Asistente">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 11.5a8.5 8.5 0 0 1-8.5 8.5 9 9 0 0 1-4-.9L3 21l1.9-5.5a9 9 0 0 1-.9-4A8.5 8.5 0 0 1 12.5 3h.5a8.5 8.5 0 0 1 8 8v.5Z"/></svg><span class="role-sidebar-label">Asistente</span>
+        </a>
+        {% if request.resolver_match.url_name == 'chat_interfaz' or request.resolver_match.url_name == 'chat_conversacion' %}
+        <div class="user-chat-tools">
+            <div class="user-quota"><span>Disponibles hoy</span><strong id="badgeCuota">{{ mensajes_restantes }} / {{ request.user.cuota_diaria_mensajes }} restantes</strong></div>
+            <form method="post" action="{% url 'chat_nueva_conversacion' %}">
+                {% csrf_token %}
+                <button type="submit" class="role-sidebar-link user-new-chat" title="Iniciar nueva consulta">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14m-7-7h14"/></svg><span class="role-sidebar-label">Nueva consulta</span>
+                </button>
+            </form>
+            <div class="user-conversation-list">
+                <p class="user-sidebar-section">Historial de consultas</p>
+                {% for c in conversaciones %}
+                <div class="user-conversation-item {% if conversacion_actual and conversacion_actual.id == c.id %}is-active{% endif %}">
+                    <a href="{% url 'chat_conversacion' c.id %}" title="{{ c.titulo }}">{{ c.titulo }}</a>
+                    <form method="post" action="{% url 'chat_eliminar_conversacion' c.id %}">
+                        {% csrf_token %}
+                        <button type="submit" aria-label="Eliminar consulta {{ c.titulo }}" title="Eliminar consulta" onclick="return confirm('¿Eliminar esta conversación?')">
+                            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18M8 6V4h8v2m-9 0 1 14h8l1-14M10 10v6m4-6v6"/></svg>
+                        </button>
+                    </form>
+                </div>
+                {% empty %}
+                <p class="user-conversation-empty">Aún no hay consultas. Inicia una nueva.</p>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+    </nav>
+    <div class="role-sidebar-bottom">
+        <a href="{% url 'usuario_perfil' %}" class="role-sidebar-user user-sidebar-profile {% if request.resolver_match.url_name == 'usuario_perfil' %}is-active{% endif %}" title="Ver mi perfil" aria-label="Ver el perfil de {{ request.user.nombre }} {{ request.user.apellido }}">
+            <span class="role-user-avatar">{{ request.user.nombre|slice:":1"|upper }}</span>
+            <span class="role-sidebar-label"><strong>{{ request.user.nombre }} {{ request.user.apellido }}</strong><small>Ver mi perfil</small></span>
+        </a>
+        <a href="{% url 'logout' %}" class="role-sidebar-link role-logout" title="Cerrar sesión">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4m7 14 5-5-5-5m5 5H9"/></svg><span class="role-sidebar-label">Cerrar sesión</span>
+        </a>
+    </div>
+</aside>
+<button type="button" class="user-sidebar-backdrop" data-sidebar-collapse aria-label="Cerrar navegación" aria-expanded="true" tabindex="-1"></button>

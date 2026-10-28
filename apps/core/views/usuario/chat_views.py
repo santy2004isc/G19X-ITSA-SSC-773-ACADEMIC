@@ -7,6 +7,7 @@ from django.contrib.auth.decorators import login_required
 from django.http import JsonResponse
 from django.views.decorators.http import require_POST
 from django.contrib import messages
+from django.urls import reverse
 
 from ...models import Usuario, Conversacion
 from ...forms.usuario_forms import EditarPerfilUsuarioForm
@@ -26,14 +27,17 @@ def chat_interfaz_view(request, conversacion_id=None):
     Interfaz de chat optimizada para Usuario Registrado.
     """
     usuario = request.user
-    conversaciones = Conversacion.objects.filter(usuario=usuario).order_by('-fecha_creacion')
+    conversaciones = Conversacion.objects.filter(
+        usuario=usuario,
+        mensajes__isnull=False,
+    ).distinct().order_by('-fecha_creacion')
     
     conversacion_actual = None
     mensajes = []
 
     if conversacion_id:
         conversacion_actual = get_object_or_404(Conversacion, id=conversacion_id, usuario=usuario)
-    elif conversaciones.exists():
+    elif request.GET.get('nueva') != '1' and conversaciones.exists():
         conversacion_actual = conversaciones.first()
 
     if conversacion_actual:
@@ -55,11 +59,7 @@ def chat_interfaz_view(request, conversacion_id=None):
 @roles_requeridos(Usuario.Rol.REGISTRADO)
 @require_POST
 def crear_nueva_conversacion_view(request):
-    nueva_conv = Conversacion.objects.create(
-        usuario=request.user,
-        titulo="Consulta Normativa"
-    )
-    return redirect('chat_conversacion', conversacion_id=nueva_conv.id)
+    return redirect(f"{reverse('chat_interfaz')}?nueva=1")
 
 
 @login_required
@@ -123,9 +123,9 @@ def enviar_mensaje_api_view(request):
             conversacion = get_object_or_404(Conversacion, id=conversacion_id, usuario=usuario)
         else:
             titulo_auto = pregunta[:40] + ("..." if len(pregunta) > 40 else "")
-            conversacion = Conversacion.objects.create(usuario=usuario, titulo=titulo_auto)
+            conversacion = Conversacion(usuario=usuario, titulo=titulo_auto)
 
-        if not conversacion.mensajes.exists() and conversacion.titulo == "Consulta Normativa":
+        if not conversacion._state.adding and not conversacion.mensajes.exists() and conversacion.titulo == "Consulta Normativa":
             conversacion.titulo = pregunta[:40] + ("..." if len(pregunta) > 40 else "")
             conversacion.save()
 
@@ -141,6 +141,7 @@ def enviar_mensaje_api_view(request):
         return JsonResponse({
             'ok': True,
             'conversacion_id': str(conversacion.id),
+            'conversacion_url': reverse('chat_conversacion', kwargs={'conversacion_id': conversacion.id}),
             'conversacion_titulo': conversacion.titulo,
             'mensajes_restantes': mensajes_restantes,
             'pregunta': {

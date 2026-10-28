@@ -1,19 +1,12 @@
 {% extends 'base.html' %}
 
-{% block title %}Mi Perfil - ACCN{% endblock %}
+{% block title %}Mi perfil | Asistente jurídico{% endblock %}
 
 {% block content %}
 <div class="min-h-screen bg-slate-50 flex flex-col">
-    <header class="bg-white border-b border-slate-200 px-6 py-4 flex items-center justify-between shadow-sm">
-        <h1 class="font-bold text-slate-800 text-xl">Perfil del Usuario</h1>
-        <div class="flex items-center gap-3">
-            <a href="{% url 'chat_interfaz' %}" class="text-sm font-medium text-blue-600 hover:underline">Volver al Chat</a>
-        </div>
-    </header>
-
     <main class="flex-1 max-w-2xl w-full mx-auto p-6">
         <div class="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
-            <h2 class="text-lg font-bold text-slate-900 mb-4">Información de la Cuenta</h2>
+            <h2 class="text-lg font-bold text-slate-900 mb-4">Datos de tu cuenta</h2>
 
             <form method="post" class="space-y-4">
                 {% csrf_token %}
@@ -78,9 +71,8 @@
                 {% endif %}
 
                 <div class="pt-4 border-t border-slate-100 flex justify-end space-x-3">
-                    <a href="{% url 'chat_interfaz' %}" class="px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100 rounded-lg">Cancelar</a>
                     <button type="submit" class="bg-blue-600 hover:bg-blue-700 text-white font-semibold px-4 py-2 rounded-lg text-sm shadow">
-                        Guardar Cambios
+                        Guardar cambios
                     </button>
                 </div>
             </form>

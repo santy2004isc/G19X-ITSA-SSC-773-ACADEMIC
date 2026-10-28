@@ -180,6 +180,8 @@ def procesar_mensaje_chat(conversacion, pregunta, usuario, consumir_cuota=False)
         )
 
     with transaction.atomic():
+        if conversacion._state.adding:
+            conversacion.save(force_insert=True)
         mensaje_usuario = Mensaje.objects.create(
             conversacion=conversacion,
             emisor=Mensaje.Emisor.USUARIO,

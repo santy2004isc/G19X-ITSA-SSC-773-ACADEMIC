@@ -17,9 +17,6 @@
         <a href="{% url 'gestor_dashboard' %}" class="role-sidebar-link {% if request.resolver_match.url_name == 'gestor_dashboard' or request.resolver_match.url_name == 'gestor_editar_ley' %}is-active{% endif %}" title="Base de conocimiento">
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2Z"/></svg><span class="role-sidebar-label">Base de conocimiento</span>
         </a>
-        <a href="{% url 'gestor_cargar_documento' %}" class="role-sidebar-link {% if request.resolver_match.url_name == 'gestor_cargar_documento' %}is-active{% endif %}" title="Cargar documento">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4m4-5 5-5 5 5m-5-5v12"/></svg><span class="role-sidebar-label">Cargar documento</span>
-        </a>
         <a href="{% url 'gestor_chat_interfaz' %}" class="role-sidebar-link {% if request.resolver_match.url_name == 'gestor_chat_interfaz' or request.resolver_match.url_name == 'gestor_chat_conversacion' %}is-active{% endif %}" title="Chat técnico">
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 11.5a8.5 8.5 0 0 1-8.5 8.5 9 9 0 0 1-4-.9L3 21l1.9-5.5a9 9 0 0 1-.9-4A8.5 8.5 0 0 1 12.5 3h.5a8.5 8.5 0 0 1 8 8v.5Z"/></svg><span class="role-sidebar-label">Chat técnico</span>
         </a>
