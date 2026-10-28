@@ -8,13 +8,7 @@
     <!-- SIDEBAR -->
     <aside id="sidebar" class="w-72 bg-slate-900 text-slate-300 flex flex-col border-r border-slate-800 flex-shrink-0 transition-all duration-300 ease-in-out">
         <div class="p-4 border-b border-slate-800 flex items-center justify-between">
-            <div class="flex items-center space-x-2">
-                <div class="w-8 h-8 text-blue-600 font-bold flex items-center justify-center text-xs">ACCN</div>
-                <div>
-                    <span class="block font-bold text-white text-sm">Agente Legal</span>
-                    <span class="gestor-badge text-[10px] font-semibold uppercase tracking-wider text-amber-400">Gestor</span>
-                </div>
-            </div>
+            <span class="font-bold text-white text-sm">Conversaciones</span>
             <form method="post" action="{% url 'gestor_crear_conversacion' %}">
                 {% csrf_token %}
                 <button type="submit" title="Nueva Consulta" class="p-1.5 hover:bg-slate-800 text-slate-300 hover:text-white rounded-lg transition">
@@ -45,17 +39,6 @@
             {% endfor %}
         </div>
 
-        <div class="p-3 border-t border-slate-800 bg-slate-950/50 space-y-2">
-            <a href="{% url 'gestor_dashboard' %}" class="gestor-management-link block rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-center text-xs font-medium transition hover:bg-slate-700">
-                📚 Ir a Gestión de Leyes
-            </a>
-            <div class="flex items-center justify-between">
-                <a href="{% url 'gestor_perfil' %}" class="truncate text-xs font-medium text-slate-300 hover:text-white">{{ request.user.nombre }} {{ request.user.apellido }}</a>
-                <a href="{% url 'logout' %}" title="Cerrar Sesión" class="text-slate-500 hover:text-red-400 p-1.5 transition">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/></svg>
-                </a>
-            </div>
-        </div>
     </aside>
 
     <main class="flex-1 flex flex-col bg-white min-w-0">
