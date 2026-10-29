@@ -172,6 +172,22 @@ html[data-theme="dark"] .status-pill-error { background-color: #7f1d1d !importan
   form .justify-end { flex-wrap: wrap; }
   form button, form a[id^="btn"] { min-height: 2.75rem; }
   .form-card { padding: 1.25rem !important; }
+  body[data-page="admin_dashboard"] main,
+  body[data-page="gestor_dashboard"] main { min-width: 0; padding: .75rem !important; }
+  body[data-page="admin_dashboard"] main > div:first-child,
+  body[data-page="gestor_dashboard"] main > div:first-child { min-width: 0; }
+  body[data-page="admin_dashboard"] header,
+  body[data-page="gestor_dashboard"] header { padding: .75rem 1rem; }
+  body[data-page="admin_dashboard"] h1,
+  body[data-page="gestor_dashboard"] h1 { font-size: 1.125rem; line-height: 1.5rem; }
+  .enhanced-table-controls { align-items: stretch; }
+  .enhanced-table-length, .enhanced-table-length label,
+  .enhanced-table-search { min-width: 0; width: 100%; }
+  .enhanced-table-length label { justify-content: space-between; }
+  .enhanced-table-length select { flex: 1; max-width: 8rem; }
+  .enhanced-table-search { align-items: stretch; flex-direction: column; gap: .35rem; }
+  .enhanced-table-search input { box-sizing: border-box; min-height: 2.75rem; }
+  .table-scroll { overscroll-behavior-inline: contain; }
 }
 
 @media (min-width: 641px) and (max-width: 1279px) {
