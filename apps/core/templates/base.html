@@ -301,6 +301,20 @@
                 footer.className = 'enhanced-table-footer';
                 wrapper.parentNode.insertBefore(footer, wrapper.nextSibling);
 
+                var serverEmptyRow = tbody && tbody.querySelector('tr td[colspan]');
+                var noResultsRow = null;
+                if (tbody && !serverEmptyRow && searchInput) {
+                    noResultsRow = document.createElement('tr');
+                    noResultsRow.hidden = true;
+                    var noResultsCell = document.createElement('td');
+                    noResultsCell.colSpan = table.querySelectorAll('thead th').length || 1;
+                    noResultsCell.className = 'enhanced-table-empty-cell';
+                    noResultsCell.setAttribute('role', 'status');
+                    noResultsCell.textContent = 'No se encontró ese registro.';
+                    noResultsRow.appendChild(noResultsCell);
+                    tbody.appendChild(noResultsRow);
+                }
+
                 function normalize(value) {
                     return String(value || '')
                         .normalize('NFD')
@@ -322,8 +336,8 @@
                     var visible = filteredRows.slice(start, start + pageSize);
                     visible.forEach(function (row) { row.hidden = false; });
 
-                    var empty = tbody && tbody.querySelector('tr td[colspan]');
-                    if (empty) empty.closest('tr').hidden = filteredRows.length !== 0;
+                    if (serverEmptyRow) serverEmptyRow.closest('tr').hidden = filteredRows.length !== 0;
+                    if (noResultsRow) noResultsRow.hidden = !query || filteredRows.length !== 0;
                     footer.innerHTML = '<span>Mostrando ' + (filteredRows.length ? start + 1 : 0) + '-' + Math.min(start + pageSize, filteredRows.length) + ' de ' + filteredRows.length + ' registros</span>';
                     if (filteredRows.length > pageSize) {
                         var previous = '<button type="button" data-page="prev" ' + (page === 1 ? 'disabled' : '') + ' aria-label="Página anterior">‹</button>';
