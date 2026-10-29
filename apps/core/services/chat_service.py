@@ -10,7 +10,8 @@ from django.conf import settings
 from django.contrib.postgres.search import SearchVector, SearchQuery, SearchRank
 from django.db import transaction
 from pgvector.django import CosineDistance
-from ..models import FragmentoNormativo, LeyFederal, Mensaje, RegistroFalloAPI
+from django.db.models import F
+from ..models import FragmentoNormativo, LeyFederal, Mensaje, RegistroFalloAPI, Usuario
 from .pdf_processor import generar_vector_embedding  
 
 logger = logging.getLogger(__name__)
@@ -173,10 +174,22 @@ def procesar_mensaje_chat(conversacion, pregunta, usuario, consumir_cuota=False)
         citas = []
     else:
         contexto, citas = buscar_contexto_normativo(pregunta)
+
+        # Contexto conversacional multi-turno (últimos 4 mensajes recientes)
+        historial_previo = []
+        if not conversacion._state.adding and conversacion.pk:
+            mensajes_qs = list(conversacion.mensajes.order_by('-fecha_envio')[:4])
+            mensajes_qs.reverse()
+            historial_previo = [
+                {'emisor': m.emisor, 'texto': m.contenido_texto}
+                for m in mensajes_qs
+            ]
+
         respuesta_texto, proveedor_usado, conmutado = generar_respuesta_ia_con_fallback(
             pregunta_usuario=pregunta,
             contexto_normativo=contexto,
             usuario=usuario,
+            historial_mensajes=historial_previo,
         )
 
     with transaction.atomic():
@@ -195,14 +208,15 @@ def procesar_mensaje_chat(conversacion, pregunta, usuario, consumir_cuota=False)
             conmutado_fallback=conmutado,
             citas=citas,
         )
+        # Actualización atómica en SQL para prevenir condiciones de carrera concurrentes
         if consumir_cuota and tipo_mensaje == 'juridico':
-            usuario.mensajes_usados_hoy += 1
-            usuario.save(update_fields=['mensajes_usados_hoy'])
+            Usuario.objects.filter(pk=usuario.pk).update(mensajes_usados_hoy=F('mensajes_usados_hoy') + 1)
+            usuario.refresh_from_db(fields=['mensajes_usados_hoy'])
 
     return mensaje_usuario, mensaje_sistema, citas
 
 
-def generar_respuesta_ia_con_fallback(pregunta_usuario, contexto_normativo, usuario=None, modelo_solicitado=None):
+def generar_respuesta_ia_con_fallback(pregunta_usuario, contexto_normativo, usuario=None, modelo_solicitado=None, historial_mensajes=None):
     """
     Procesa la llamada a Groq y conmuta a Gemini si falla (RF-3.2, RF-3.3).
     Registra la auditoría del fallo en RegistroFalloAPI.
@@ -242,12 +256,18 @@ def generar_respuesta_ia_con_fallback(pregunta_usuario, contexto_normativo, usua
         groq_client = get_groq_client()
         modelo_groq = modelo_solicitado if isinstance(modelo_solicitado, str) else settings.GROQ_MODEL
         
+        mensajes_groq = [{"role": "system", "content": system_prompt}]
+        if historial_mensajes:
+            for item in historial_mensajes[-4:]:
+                rol = "assistant" if item.get('emisor') in (Mensaje.Emisor.SISTEMA, 'SISTEMA', 'assistant') else "user"
+                texto_item = item.get('texto', '').strip()
+                if texto_item:
+                    mensajes_groq.append({"role": rol, "content": texto_item})
+        mensajes_groq.append({"role": "user", "content": user_prompt})
+
         response = groq_client.chat.completions.create(
             model=modelo_groq,
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_prompt}
-            ],
+            messages=mensajes_groq,
             temperature=0.3,
             max_tokens=1000
         )
@@ -259,12 +279,27 @@ def generar_respuesta_ia_con_fallback(pregunta_usuario, contexto_normativo, usua
         conmutado = True
         codigo_error_groq = type(e_groq).__name__
         
+        contenido_gemini = user_prompt
+        if historial_mensajes:
+            lineas_historial = [
+                f"- {'Asistente' if item.get('emisor') in (Mensaje.Emisor.SISTEMA, 'SISTEMA', 'assistant') else 'Usuario'}: {item.get('texto', '').strip()}"
+                for item in historial_mensajes[-4:]
+                if item.get('texto', '').strip()
+            ]
+            if lineas_historial:
+                contenido_gemini = (
+                    "Historial reciente de la conversación:\n"
+                    + "\n".join(lineas_historial)
+                    + "\n\n"
+                    + user_prompt
+                )
+
         for intento in range(2):
             try:
                 gemini_client = get_gemini_client()
                 response = gemini_client.models.generate_content(
                     model=settings.GEMINI_MODEL,
-                    contents=user_prompt,
+                    contents=contenido_gemini,
                     config={
                         "system_instruction": system_prompt,
                         "temperature": 0.3,

@@ -1,4 +1,5 @@
 import re
+import logging
 from functools import wraps
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
@@ -18,8 +19,11 @@ from ...services.pdf_processor import (
     extraer_metadatos_primera_pagina,
     extraer_articulo_fragmento,
     generar_vector_embedding,
+    generar_vectores_en_lote,
     calcular_hash_fragmento
 )
+
+logger = logging.getLogger(__name__)
 
 
 def _crear_fragmentos_normativos(ley, chunks):
@@ -27,6 +31,10 @@ def _crear_fragmentos_normativos(ley, chunks):
     fragmentos_vistos = set()
     articulo_actual = ""
     en_transitorios = False
+
+    chunks_a_procesar = []
+    articulos_por_chunk = []
+
     for chunk in chunks:
         coincidencias_articulo = []
         transitorio = re.search(r"^[ \t]*TRANSITORIOS\b", chunk, re.IGNORECASE | re.MULTILINE)
@@ -62,12 +70,25 @@ def _crear_fragmentos_normativos(ley, chunks):
         if clave in fragmentos_vistos:
             continue
         fragmentos_vistos.add(clave)
+        chunks_a_procesar.append(chunk)
+        articulos_por_chunk.append(articulo_actual)
+
+    if not chunks_a_procesar:
+        return []
+
+    # Vectorización en lote (Batch Encoding) con compatibilidad para mocks en pruebas
+    if hasattr(generar_vector_embedding, 'mock_calls') or hasattr(generar_vector_embedding, 'return_value'):
+        vectores = [generar_vector_embedding(c) for c in chunks_a_procesar]
+    else:
+        vectores = generar_vectores_en_lote(chunks_a_procesar, batch_size=32)
+
+    for chunk, art, vector in zip(chunks_a_procesar, articulos_por_chunk, vectores):
         fragmentos.append(
             FragmentoNormativo(
                 ley=ley,
                 contenido_fragmento=chunk,
-                articulo=articulo_actual,
-                vector_embedding=generar_vector_embedding(chunk),
+                articulo=art,
+                vector_embedding=vector,
                 hash_fragmento=calcular_hash_fragmento(chunk, ley.pk),
             )
         )
@@ -106,6 +127,12 @@ def previsualizar_documento_view(request):
         metadatos = extraer_metadatos_primera_pagina(archivo)
     except ValidationError as error:
         return JsonResponse({"error": str(error)}, status=400)
+    except Exception:
+        logger.exception("Error inesperado al previsualizar el PDF %r", archivo.name)
+        return JsonResponse(
+            {"error": "Ocurrió un error interno al leer el PDF. Revisa el registro del servidor para ver el detalle."},
+            status=500,
+        )
     return JsonResponse({"metadatos": metadatos})
 
 

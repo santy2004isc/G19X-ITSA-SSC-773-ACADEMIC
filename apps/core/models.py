@@ -2,6 +2,8 @@ import uuid
 from django.db import models
 from django.contrib.auth.models import AbstractBaseUser, BaseUserManager, PermissionsMixin
 from pgvector.django import VectorField, HnswIndex
+from django.contrib.postgres.indexes import GinIndex
+from django.contrib.postgres.search import SearchVector
 from django.utils import timezone
 
 # ==========================================
@@ -238,6 +240,10 @@ class FragmentoNormativo(models.Model):
                 m=16,
                 ef_construction=64,
                 opclasses=['vector_cosine_ops'],
+            ),
+            GinIndex(
+                SearchVector('contenido_fragmento', config='spanish'),
+                name='idx_frag_fts_gin',
             ),
         ]
 

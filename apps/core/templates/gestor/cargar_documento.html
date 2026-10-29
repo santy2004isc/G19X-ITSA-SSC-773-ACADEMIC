@@ -130,7 +130,19 @@
                 headers: {'X-CSRFToken': '{{ csrf_token }}'},
                 body: datos,
             });
-            const resultado = await response.json();
+            const tipoContenido = response.headers.get('content-type') || '';
+            if (!tipoContenido.includes('application/json')) {
+                if (response.redirected || response.status === 401 || response.status === 403) {
+                    throw new Error('Tu sesión pudo haber expirado o no tienes permiso para analizar el PDF. Actualiza la página e inténtalo de nuevo.');
+                }
+                throw new Error(`El servidor respondió con un formato inesperado (HTTP ${response.status}). Revisa que la sesión siga activa e inténtalo de nuevo.`);
+            }
+            let resultado;
+            try {
+                resultado = await response.json();
+            } catch (_) {
+                throw new Error('El servidor devolvió una respuesta JSON inválida al analizar el PDF. Inténtalo de nuevo.');
+            }
             if (idSolicitud !== solicitudAnalisis) return;
             if (!response.ok) throw new Error(resultado.error || 'No se pudo analizar el documento.');
 

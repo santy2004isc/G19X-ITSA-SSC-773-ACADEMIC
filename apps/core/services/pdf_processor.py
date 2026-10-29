@@ -21,7 +21,7 @@ _PATRON_ENCABEZADO_ARTICULO = (
     r"[ \t]*)(?!\w)(?:\.-|\.)"
 )
 _ENCABEZADO_ARTICULO = re.compile(_PATRON_ENCABEZADO_ARTICULO, re.MULTILINE)
-_INICIO_ARTICULO = re.compile(r"(?=" + _PATRON_ENCABEZADO_ARTICULO + r")", re.MULTILINE)
+_INICIO_ARTICULO = re.compile(_PATRON_ENCABEZADO_ARTICULO, re.MULTILINE)
 
 
 def extraer_articulo_fragmento(texto):
@@ -93,7 +93,17 @@ def _fragmentar_texto_estructurado(texto, chunk_size=1000, overlap=150):
     chunks = []
     chunk_actual = ""
     for parrafo in (p.strip() for p in texto.split("\n\n") if p.strip()):
-        unidades = (u.strip() for u in _INICIO_ARTICULO.split(parrafo) if u.strip())
+        # re.split() agrega al resultado los grupos de captura del patrón y
+        # puede insertar None. Separar por posiciones mantiene cada encabezado
+        # dentro de su unidad sin convertir los grupos en fragmentos.
+        unidades = []
+        inicio_unidad = 0
+        for encabezado in _INICIO_ARTICULO.finditer(parrafo):
+            if encabezado.start() > inicio_unidad:
+                unidades.append(parrafo[inicio_unidad:encabezado.start()].strip())
+                inicio_unidad = encabezado.start()
+        unidades.append(parrafo[inicio_unidad:].strip())
+        unidades = (unidad for unidad in unidades if unidad)
         for unidad in unidades:
             if _ENCABEZADO_ARTICULO.match(unidad) and chunk_actual:
                 chunks.append(chunk_actual)
@@ -314,6 +324,24 @@ def generar_vector_embedding(texto):
     model = get_embedding_model()
     embedding = model.encode(texto, convert_to_numpy=True)
     return embedding.tolist()
+
+
+def generar_vectores_en_lote(textos, batch_size=32):
+    """
+    Genera representaciones vectoriales en lote (batch) usando sentence-transformers.
+    Aprovecha la inferencia vectorizada de PyTorch, reduciendo el tiempo de procesamiento
+    drásticamente en comparación con llamadas individuales repetitivas.
+    """
+    if not textos:
+        return []
+    model = get_embedding_model()
+    embeddings = model.encode(
+        textos,
+        batch_size=batch_size,
+        convert_to_numpy=True,
+        show_progress_bar=False,
+    )
+    return [emb.tolist() for emb in embeddings]
 
 
 def calcular_hash_fragmento(texto, ley_id=None):
