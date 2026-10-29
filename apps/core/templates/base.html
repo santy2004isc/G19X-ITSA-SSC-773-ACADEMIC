@@ -302,7 +302,12 @@
                 wrapper.parentNode.insertBefore(footer, wrapper.nextSibling);
 
                 function normalize(value) {
-                    return String(value || '').replace(/\s+/g, ' ').trim().toLocaleLowerCase('es');
+                    return String(value || '')
+                        .normalize('NFD')
+                        .replace(/[\u0300-\u036f]/g, '')
+                        .replace(/\s+/g, ' ')
+                        .trim()
+                        .toLocaleLowerCase('es');
                 }
 
                 function render() {

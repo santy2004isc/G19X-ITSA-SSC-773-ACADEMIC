@@ -36,11 +36,12 @@ def admin_dashboard_view(request):
 
     usuarios = Usuario.objects.exclude(id=request.user.id).filter(is_superuser=False)
     if query:
+        # Normaliza ambos lados para ignorar mayusculas y acentos.
         class Unaccent(Func):
             function = 'unaccent'
             template = "%(function)s(%(expressions)s)"
 
-        consulta_sin_acentos = Unaccent(Value(query.lower()))
+        consulta_sin_acentos = Unaccent(Lower(Value(query)))
         usuarios = usuarios.annotate(
             nombre_sin_acentos=Unaccent(Lower('nombre')),
             apellido_sin_acentos=Unaccent(Lower('apellido')),

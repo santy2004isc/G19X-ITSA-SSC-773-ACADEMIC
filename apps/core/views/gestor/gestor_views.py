@@ -168,7 +168,7 @@ def gestor_dashboard_view(request):
         class Unaccent(Func):
             function = 'unaccent'
             template = "%(function)s(%(expressions)s)"
-        consulta_sin_acentos = Unaccent(Value(query.lower()))
+        consulta_sin_acentos = Unaccent(Lower(Value(query)))
         leyes = leyes.annotate(
             nombre_sin_acentos=Unaccent(Lower('nombre')),
             siglas_sin_acentos=Unaccent(Lower('siglas')),
