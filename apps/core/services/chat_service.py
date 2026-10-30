@@ -8,6 +8,7 @@ from google import genai
 from google.genai.errors import APIError
 from django.conf import settings
 from django.contrib.postgres.search import SearchVector, SearchQuery, SearchRank
+from django.core.cache import cache
 from django.db import transaction
 from pgvector.django import CosineDistance
 from django.db.models import F
@@ -87,28 +88,51 @@ def get_gemini_client():
     return genai.Client(api_key=api_key)
 
 
+CACHE_LEYES_VIGENTES_KEY = 'leyes_vigentes_catalogo'
+
+
+def obtener_catalogo_leyes_vigentes():
+    """Obtiene y cachea en memoria el catálogo de leyes vigentes para evitar consultas repetitivas a BD."""
+    catalogo = cache.get(CACHE_LEYES_VIGENTES_KEY)
+    if catalogo is None:
+        leyes_qs = LeyFederal.objects.filter(estado=LeyFederal.Estado.VIGENTE).only('id', 'nombre', 'siglas')
+        catalogo = [
+            {
+                'id': ley.id,
+                'nombre': ley.nombre,
+                'siglas': ley.siglas or '',
+                'nombre_norm': _normalizar_texto_busqueda(ley.nombre),
+                'siglas_norm': _normalizar_texto_busqueda(ley.siglas or ''),
+            }
+            for ley in leyes_qs
+        ]
+        cache.set(CACHE_LEYES_VIGENTES_KEY, catalogo, timeout=300)
+    return catalogo
+
+
 def buscar_contexto_normativo(pregunta_usuario, top_k=4):
     """
     Búsqueda híbrida (Semántica + Léxica) con fusión de rangos recíprocos (RRF).
     Combina la similitud de coseno en pgvector con el motor de búsqueda léxica
     Full-Text Search de PostgreSQL, optimizado para artículos y conceptos jurídicos.
-    Filtra ÚNICAMENTE leyes con estado VIGENTE.
+    Filtra ÚNICAMENTE leyes con estado VIGENTE y aplica un boost en RRF a fragmentos
+    de leyes directamente identificadas en la pregunta sin excluir el resto de normas.
     """
     vector_pregunta = generar_vector_embedding(pregunta_usuario)
     candidatos_k = max(top_k * 3, 10)
-    leyes_coincidentes = []
+    leyes_coincidentes = set()
     pregunta_normalizada = _normalizar_texto_busqueda(pregunta_usuario)
 
-    for ley in LeyFederal.objects.filter(estado=LeyFederal.Estado.VIGENTE).only('id', 'nombre', 'siglas'):
-        nombre_normalizado = _normalizar_texto_busqueda(ley.nombre)
-        siglas_normalizadas = _normalizar_texto_busqueda(ley.siglas or '')
-        nombre_coincide = len(nombre_normalizado) >= 8 and nombre_normalizado in pregunta_normalizada
+    for ley in obtener_catalogo_leyes_vigentes():
+        nombre_norm = ley['nombre_norm']
+        siglas_norm = ley['siglas_norm']
+        nombre_coincide = len(nombre_norm) >= 8 and nombre_norm in pregunta_normalizada
         siglas_coinciden = (
-            siglas_normalizadas
-            and re.search(rf"\b{re.escape(siglas_normalizadas)}\b", pregunta_normalizada)
+            siglas_norm
+            and re.search(rf"\b{re.escape(siglas_norm)}\b", pregunta_normalizada)
         )
         if nombre_coincide or siglas_coinciden:
-            leyes_coincidentes.append(ley.id)
+            leyes_coincidentes.add(ley['id'])
     
     candidatos_dict = {}
     rrf_scores = {}
@@ -116,19 +140,18 @@ def buscar_contexto_normativo(pregunta_usuario, top_k=4):
 
     # 1. Recuperación Vectorial (Semántica mediante CosineDistance y HNSW)
     try:
-        consulta_vectorial = FragmentoNormativo.objects.select_related('ley').filter(
+        qs_vectorial = FragmentoNormativo.objects.select_related('ley').filter(
             ley__estado=LeyFederal.Estado.VIGENTE
-        )
-        if leyes_coincidentes:
-            consulta_vectorial = consulta_vectorial.filter(ley_id__in=leyes_coincidentes)
-        qs_vectorial = consulta_vectorial.annotate(
+        ).annotate(
             distancia=CosineDistance('vector_embedding', vector_pregunta)
         ).order_by('distancia')[:candidatos_k]
 
         for rank, frag in enumerate(qs_vectorial):
             frag_id = frag.id
             candidatos_dict[frag_id] = frag
-            rrf_scores[frag_id] = rrf_scores.get(frag_id, 0.0) + (1.0 / (k_rrf + (rank + 1)))
+            # Priorización de la ley mencionada (boost RRF de 2.0x) o peso estándar
+            peso_ley = 2.0 if frag.ley_id in leyes_coincidentes else 1.0
+            rrf_scores[frag_id] = rrf_scores.get(frag_id, 0.0) + (peso_ley / (k_rrf + (rank + 1)))
     except Exception:
         logger.exception("Falló la recuperación vectorial de fragmentos normativos.")
 
@@ -137,12 +160,9 @@ def buscar_contexto_normativo(pregunta_usuario, top_k=4):
         search_query = SearchQuery(pregunta_usuario, config='spanish', search_type='websearch')
         search_vector = SearchVector('contenido_fragmento', config='spanish')
 
-        consulta_lexica = FragmentoNormativo.objects.select_related('ley').filter(
+        qs_lexica = FragmentoNormativo.objects.select_related('ley').filter(
             ley__estado=LeyFederal.Estado.VIGENTE
-        )
-        if leyes_coincidentes:
-            consulta_lexica = consulta_lexica.filter(ley_id__in=leyes_coincidentes)
-        qs_lexica = consulta_lexica.annotate(
+        ).annotate(
             rank_lex=SearchRank(search_vector, search_query)
         ).filter(
             rank_lex__gt=0.01
@@ -151,8 +171,9 @@ def buscar_contexto_normativo(pregunta_usuario, top_k=4):
         for rank, frag in enumerate(qs_lexica):
             frag_id = frag.id
             candidatos_dict[frag_id] = frag
-            # Se otorga un multiplicador de 1.2 a la coincidencia léxica exacta (ej. números de artículo o siglas)
-            rrf_scores[frag_id] = rrf_scores.get(frag_id, 0.0) + (1.2 / (k_rrf + (rank + 1)))
+            # Se otorga un multiplicador léxico de 1.2, más boost de ley coincidente si aplica
+            multiplicador = 1.2 * (2.0 if frag.ley_id in leyes_coincidentes else 1.0)
+            rrf_scores[frag_id] = rrf_scores.get(frag_id, 0.0) + (multiplicador / (k_rrf + (rank + 1)))
     except Exception:
         logger.exception("Falló la recuperación léxica de fragmentos normativos.")
 

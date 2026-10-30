@@ -4,6 +4,7 @@ from django.contrib.auth.models import AbstractBaseUser, BaseUserManager, Permis
 from pgvector.django import VectorField, HnswIndex
 from django.contrib.postgres.indexes import GinIndex
 from django.contrib.postgres.search import SearchVector
+from django.core.cache import cache
 from django.utils import timezone
 
 # ==========================================
@@ -191,6 +192,14 @@ class LeyFederal(models.Model):
 
     def __str__(self):
         return self.siglas if self.siglas else self.nombre[:50]
+
+    def save(self, *args, **kwargs):
+        super().save(*args, **kwargs)
+        cache.delete('leyes_vigentes_catalogo')
+
+    def delete(self, *args, **kwargs):
+        super().delete(*args, **kwargs)
+        cache.delete('leyes_vigentes_catalogo')
 
 
 # ==========================================

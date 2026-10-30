@@ -9,7 +9,7 @@ from django.views.decorators.http import require_POST
 from django.contrib import messages
 from django.urls import reverse
 
-from ...models import Usuario, Conversacion
+from ...models import Usuario, Conversacion, LeyFederal
 from ...forms.usuario_forms import EditarPerfilUsuarioForm
 from ...decorators import roles_requeridos
 from ...services.chat_service import (
@@ -46,12 +46,14 @@ def chat_interfaz_view(request, conversacion_id=None):
 
     usuario.verificar_y_reiniciar_cuota_diaria()
     mensajes_restantes = max(0, usuario.cuota_diaria_mensajes - usuario.mensajes_usados_hoy)
+    leyes_disponibles = LeyFederal.objects.filter(estado=LeyFederal.Estado.VIGENTE).only('nombre', 'siglas')[:8]
 
     context = {
         'conversaciones': conversaciones,
         'conversacion_actual': conversacion_actual,
         'mensajes': mensajes,
         'mensajes_restantes': mensajes_restantes,
+        'leyes_disponibles': leyes_disponibles,
     }
     return render(request, 'usuario/chat.html', context)
 

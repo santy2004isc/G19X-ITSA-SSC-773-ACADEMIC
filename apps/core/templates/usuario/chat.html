@@ -44,18 +44,36 @@
                             </div>
                             {% endif %}
 
-                            <span class="block text-right text-[10px] text-slate-400 mt-1">{{ msg.fecha_envio|date:"H:i" }}</span>
+                            <div class="flex items-center justify-between pt-1 text-[10px] text-slate-400 border-t border-slate-100 mt-2">
+                                <button type="button" onclick="ChatEngine.copiarAlPortapapeles(this, this.closest('.max-w-2xl').querySelector('.markdown-content').innerText)" class="hover:text-blue-600 flex items-center transition" title="Copiar respuesta al portapapeles">
+                                    <svg class="w-3.5 h-3.5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"/></svg>
+                                    <span>Copiar</span>
+                                </button>
+                                <span>{{ msg.fecha_envio|date:"H:i" }}</span>
+                            </div>
                         </div>
                     </div>
                     {% endif %}
                 {% endfor %}
             {% else %}
             <div id="emptyState" class="h-full flex flex-col items-center justify-center text-center p-6">
-                <div class="w-12 h-12 bg-blue-100 text-blue-600 rounded-2xl flex items-center justify-center mb-3 font-bold text-xl">
+                <div class="w-12 h-12 bg-blue-100 text-blue-600 rounded-2xl flex items-center justify-center mb-3 font-bold text-xl shadow-sm">
                     ⚖️
                 </div>
                 <h3 class="font-bold text-slate-800 text-base">Asistente de Leyes Federales</h3>
                 <p class="text-xs text-slate-500 max-w-sm mt-1">Escriba su duda jurídica. El sistema buscará en los fragmentos normativos para dar su respuesta con citas fundamentadas.</p>
+                {% if leyes_disponibles %}
+                <div class="mt-4 pt-4 border-t border-slate-200/60 max-w-md">
+                    <span class="block text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-2">Leyes disponibles para consulta:</span>
+                    <div class="flex flex-wrap gap-1.5 justify-center">
+                        {% for ley in leyes_disponibles %}
+                        <button type="button" onclick="document.getElementById('chatInput').value='¿Qué dice la {{ ley.siglas|default:ley.nombre }} sobre '; document.getElementById('chatInput').focus();" class="text-xs px-2.5 py-1 bg-white hover:bg-blue-50 text-slate-700 hover:text-blue-700 border border-slate-200 rounded-lg shadow-2xs transition" title="{{ ley.nombre }}">
+                            📜 {{ ley.siglas|default:ley.nombre|truncatechars:35 }}
+                        </button>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% endif %}
             </div>
             {% endif %}
         </div>
@@ -80,6 +98,8 @@
     </main>
 </div>
 
+{% load static %}
+<script src="{% static 'js/chat_engine.js' %}"></script>
 <script>
     const chatContainer = document.getElementById('chatContainer');
     const chatForm = document.getElementById('chatForm');
@@ -89,76 +109,22 @@
     const sendButton = document.getElementById('btnEnviar');
     const quotaBadge = document.getElementById('badgeCuota');
 
-    function escapeHtml(value) {
-        return String(value ?? '').replace(/[&<>"']/g, function (character) {
-            return {'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[character];
-        });
-    }
-
-    function renderMarkdown(markdown) {
-        const lines = String(markdown ?? '').replace(/\r/g, '').split('\n');
-        const inline = value => escapeHtml(value)
-            .replace(/`([^`]+)`/g, '<code class="rounded bg-slate-100 px-1 py-0.5 font-mono text-blue-800">$1</code>')
-            .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
-            .replace(/__(.+?)__/g, '<strong>$1</strong>')
-            .replace(/(^|[^*])\*([^*\n]+)\*(?!\*)/g, '$1<em>$2</em>');
-        const cells = line => line.trim().replace(/^\|/, '').replace(/\|$/, '').split('|').map(cell => cell.trim());
-        const isTableSeparator = line => cells(line).length > 1 && cells(line).every(cell => /^:?-{3,}:?$/.test(cell));
-        const output = [];
-        let index = 0;
-
-        while (index < lines.length) {
-            if (!lines[index].trim()) { index++; continue; }
-            if (index + 1 < lines.length && lines[index].includes('|') && isTableSeparator(lines[index + 1])) {
-                const headings = cells(lines[index]);
-                index += 2;
-                const rows = [];
-                while (index < lines.length && lines[index].includes('|') && lines[index].trim()) rows.push(cells(lines[index++]));
-                output.push(`<div class="my-3 max-w-full overflow-x-auto rounded-lg border border-slate-200"><table class="w-full border-collapse text-left text-xs"><thead class="bg-slate-100 text-slate-700"><tr>${headings.map(cell => `<th class="border-b border-slate-200 px-3 py-2 font-semibold">${inline(cell)}</th>`).join('')}</tr></thead><tbody>${rows.map(row => `<tr>${headings.map((_, cellIndex) => `<td class="border-t border-slate-100 px-3 py-2 align-top">${inline(row[cellIndex] || '')}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`);
-                continue;
-            }
-            const heading = lines[index].match(/^(#{1,3})\s+(.+)$/);
-            if (heading) {
-                const level = heading[1].length + 2;
-                output.push(`<h${level} class="mb-1 mt-3 font-bold text-slate-900">${inline(heading[2])}</h${level}>`);
-                index++;
-                continue;
-            }
-            if (/^\s*(?:[-*]|\d+\.)\s+/.test(lines[index])) {
-                const ordered = /^\s*\d+\./.test(lines[index]);
-                const items = [];
-                while (index < lines.length && /^\s*(?:[-*]|\d+\.)\s+/.test(lines[index])) {
-                    items.push(lines[index++].replace(/^\s*(?:[-*]|\d+\.)\s+/, ''));
-                }
-                const tag = ordered ? 'ol' : 'ul';
-                output.push(`<${tag} class="my-2 list-inside ${ordered ? 'list-decimal' : 'list-disc'} space-y-1 pl-2">${items.map(item => `<li>${inline(item)}</li>`).join('')}</${tag}>`);
-                continue;
-            }
-            const paragraph = [];
-            while (index < lines.length && lines[index].trim() && !(index + 1 < lines.length && lines[index].includes('|') && isTableSeparator(lines[index + 1])) && !/^(#{1,3})\s+/.test(lines[index]) && !/^\s*(?:[-*]|\d+\.)\s+/.test(lines[index])) {
-                paragraph.push(lines[index++]);
-            }
-            output.push(`<p class="my-2 whitespace-pre-wrap">${inline(paragraph.join('\n')).replace(/\n/g, '<br>')}</p>`);
-        }
-        return output.join('');
-    }
-
     function userMessageHtml(message, time) {
-        return `<div class="flex justify-end"><div class="max-w-xl break-words overflow-hidden rounded-2xl rounded-tr-none bg-blue-600 px-4 py-3 text-sm text-white shadow-sm"><p class="whitespace-pre-wrap break-words">${escapeHtml(message)}</p><span class="mt-1 block text-right text-[10px] text-blue-200">${escapeHtml(time)}</span></div></div>`;
+        return `<div class="flex justify-end"><div class="max-w-xl break-words overflow-hidden rounded-2xl rounded-tr-none bg-blue-600 px-4 py-3 text-sm text-white shadow-sm"><p class="whitespace-pre-wrap break-words">${ChatEngine.escapeHtml(message)}</p><span class="mt-1 block text-right text-[10px] text-blue-200">${ChatEngine.escapeHtml(time)}</span></div></div>`;
     }
 
     function assistantMessageHtml(answer) {
         const citations = Array.isArray(answer.citas) && answer.citas.length
-            ? `<div class="mt-2 space-y-1.5 rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs"><span class="block text-[10px] font-bold uppercase tracking-wider text-slate-700">Citas normativas:</span><ul class="list-inside list-disc space-y-1 break-words text-slate-600">${answer.citas.map(citation => `<li><strong>${escapeHtml(citation.ley)}</strong> (${escapeHtml(citation.siglas)}) - Art. ${escapeHtml(citation.articulo || '?')} - Ultima reforma: ${escapeHtml(citation.fecha_reforma)}</li>`).join('')}</ul></div>`
+            ? `<div class="mt-2 space-y-1.5 rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs"><span class="block text-[10px] font-bold uppercase tracking-wider text-slate-700">Citas normativas:</span><ul class="list-inside list-disc space-y-1 break-words text-slate-600">${answer.citas.map(citation => `<li><strong>${ChatEngine.escapeHtml(citation.ley)}</strong> (${ChatEngine.escapeHtml(citation.siglas)}) - Art. ${ChatEngine.escapeHtml(citation.articulo || '—')} - Última reforma: ${ChatEngine.escapeHtml(citation.fecha_reforma)}</li>`).join('')}</ul></div>`
             : '';
         const provider = answer.proveedor
-            ? `IA: ${escapeHtml(answer.proveedor)}${answer.conmutado ? ' (Fallback)' : ''}`
+            ? `IA: ${ChatEngine.escapeHtml(answer.proveedor)}${answer.conmutado ? ' (Fallback)' : ''}`
             : 'Asistente';
-        return `<div class="flex justify-start"><div class="max-w-2xl break-words overflow-hidden rounded-2xl rounded-tl-none border border-slate-200 bg-white p-4 text-sm text-slate-800 shadow-sm"><div class="flex items-center justify-between border-b border-slate-100 pb-1.5 text-xs"><span class="font-semibold text-blue-600">Respuesta del asistente</span><span class="text-[10px] text-slate-400">${provider}</span></div><div class="markdown-content leading-relaxed break-words">${renderMarkdown(answer.contenido)}</div>${citations}<span class="mt-1 block text-right text-[10px] text-slate-400">${escapeHtml(answer.fecha)}</span></div></div>`;
+        return `<div class="flex justify-start"><div class="max-w-2xl break-words overflow-hidden rounded-2xl rounded-tl-none border border-slate-200 bg-white p-4 text-sm text-slate-800 shadow-sm"><div class="flex items-center justify-between border-b border-slate-100 pb-1.5 text-xs"><span class="font-semibold text-blue-600">Respuesta del asistente</span><span class="text-[10px] text-slate-400">${provider}</span></div><div class="markdown-content leading-relaxed break-words">${ChatEngine.renderMarkdown(answer.contenido)}</div>${citations}<div class="flex items-center justify-between pt-1 text-[10px] text-slate-400 border-t border-slate-100 mt-2"><button type="button" onclick="ChatEngine.copiarAlPortapapeles(this, this.closest('.max-w-2xl').querySelector('.markdown-content').innerText)" class="hover:text-blue-600 flex items-center transition" title="Copiar respuesta al portapapeles"><svg class="w-3.5 h-3.5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"/></svg><span>Copiar</span></button><span>${ChatEngine.escapeHtml(answer.fecha)}</span></div></div></div>`;
     }
 
     document.querySelectorAll('#chatContainer .markdown-content').forEach(function (element) {
-        element.innerHTML = renderMarkdown(element.textContent);
+        element.innerHTML = ChatEngine.renderMarkdown(element.textContent);
     });
     chatContainer.scrollTop = chatContainer.scrollHeight;
 

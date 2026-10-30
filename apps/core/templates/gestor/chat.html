@@ -70,7 +70,7 @@
                 {% else %}
                     <div class="flex justify-start">
                         <div class="max-w-2xl bg-white border border-slate-200 text-slate-800 p-4 rounded-2xl rounded-tl-none text-sm space-y-2 shadow-sm break-words overflow-hidden">
-                            <p class="whitespace-pre-wrap break-words">{{ msg.contenido_texto }}</p>
+                            <div class="markdown-content leading-relaxed break-words">{{ msg.contenido_texto }}</div>
                             
                             {% if msg.citas %}
                                 <div class="mt-2 pt-2 border-t border-slate-200 text-xs text-slate-600 space-y-1">
@@ -84,15 +84,24 @@
                             {% endif %}
 
                             <div class="flex items-center justify-between pt-1 text-[10px] text-slate-400 border-t border-slate-200">
-                                {% if msg.proveedor_ia %}
-                                <span>Proveedor: <strong class="text-slate-600">{{ msg.get_proveedor_ia_display|default:msg.proveedor_ia }}</strong></span>
-                                {% else %}
-                                <span>Asistente</span>
-                                {% endif %}
-                                {% if msg.conmutado_fallback %}
-                                    <span class="text-amber-400 font-semibold">⚡ Fallback Activo</span>
-                                {% endif %}
-                                <span>{{ msg.fecha_envio|date:"H:i" }}</span>
+                                <div class="flex items-center space-x-2">
+                                    <button type="button" onclick="ChatEngine.copiarAlPortapapeles(this, this.closest('.max-w-2xl').querySelector('.markdown-content').innerText)" class="hover:text-blue-600 flex items-center transition" title="Copiar respuesta al portapapeles">
+                                        <svg class="w-3.5 h-3.5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"/></svg>
+                                        <span>Copiar</span>
+                                    </button>
+                                    <span>·</span>
+                                    {% if msg.proveedor_ia %}
+                                    <span>Proveedor: <strong class="text-slate-600">{{ msg.get_proveedor_ia_display|default:msg.proveedor_ia }}</strong></span>
+                                    {% else %}
+                                    <span>Asistente</span>
+                                    {% endif %}
+                                </div>
+                                <div class="flex items-center space-x-1.5">
+                                    {% if msg.conmutado_fallback %}
+                                        <span class="text-amber-400 font-semibold">⚡ Fallback Activo</span>
+                                    {% endif %}
+                                    <span>{{ msg.fecha_envio|date:"H:i" }}</span>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -129,6 +138,8 @@
     </main>
 </div>
 
+{% load static %}
+<script src="{% static 'js/chat_engine.js' %}"></script>
 <script>
     // Control para Ocultar / Mostrar Sidebar
     const toggleSidebarBtn = document.getElementById('toggleSidebar');
@@ -150,61 +161,8 @@
     const btnEnviar = document.getElementById('btnEnviar');
     const respuestaPendiente = document.getElementById('respuestaPendiente');
 
-    function escaparHtml(texto) {
-        return String(texto ?? '').replace(/[&<>"']/g, function(caracter) {
-            return {'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[caracter];
-        });
-    }
-
-    function renderizarMarkdown(texto) {
-        const lineas = String(texto ?? '').replace(/\r/g, '').split('\n');
-        const salida = [];
-        const celdas = linea => linea.trim().replace(/^\|/, '').replace(/\|$/, '').split('|').map(celda => celda.trim());
-        const esSeparadorTabla = linea => celdas(linea).length > 1 && celdas(linea).every(celda => /^:?-{3,}:?$/.test(celda));
-        const inline = valor => escaparHtml(valor)
-            .replace(/`([^`]+)`/g, '<code class="rounded bg-slate-100 px-1 py-0.5 font-mono text-blue-800">$1</code>')
-            .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
-            .replace(/__(.+?)__/g, '<strong>$1</strong>')
-            .replace(/(^|[^*])\*([^*\n]+)\*(?!\*)/g, '$1<em>$2</em>');
-
-        for (let i = 0; i < lineas.length;) {
-            if (!lineas[i].trim()) { i++; continue; }
-            if (i + 1 < lineas.length && lineas[i].includes('|') && esSeparadorTabla(lineas[i + 1])) {
-                const encabezados = celdas(lineas[i]);
-                i += 2;
-                const filas = [];
-                while (i < lineas.length && lineas[i].includes('|') && lineas[i].trim()) filas.push(celdas(lineas[i++]));
-                salida.push(`<div class="my-3 max-w-full overflow-x-auto rounded-lg border border-slate-200"><table class="w-full border-collapse text-left text-xs"><thead class="bg-slate-100 text-slate-700"><tr>${encabezados.map(celda => `<th class="border-b border-slate-200 px-3 py-2 font-semibold">${inline(celda)}</th>`).join('')}</tr></thead><tbody>${filas.map(fila => `<tr class="odd:bg-white even:bg-slate-50">${encabezados.map((_, indice) => `<td class="border-t border-slate-100 px-3 py-2 align-top">${inline(fila[indice] || '')}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`);
-                continue;
-            }
-            const heading = lineas[i].match(/^(#{1,3})\s+(.+)$/);
-            if (heading) {
-                const nivel = heading[1].length;
-                salida.push(`<h${nivel + 2} class="mb-1 mt-3 font-bold text-slate-900">${inline(heading[2])}</h${nivel + 2}>`);
-                i++;
-                continue;
-            }
-            if (/^\s*(?:[-*]|\d+\.)\s+/.test(lineas[i])) {
-                const numerada = /^\s*\d+\./.test(lineas[i]);
-                const items = [];
-                while (i < lineas.length && /^\s*(?:[-*]|\d+\.)\s+/.test(lineas[i])) {
-                    items.push(lineas[i++].replace(/^\s*(?:[-*]|\d+\.)\s+/, ''));
-                }
-                const tag = numerada ? 'ol' : 'ul';
-                salida.push(`<${tag} class="my-2 list-inside ${numerada ? 'list-decimal' : 'list-disc'} space-y-1 pl-2">${items.map(item => `<li>${inline(item)}</li>`).join('')}</${tag}>`);
-                continue;
-            }
-            const parrafo = [];
-            while (i < lineas.length && lineas[i].trim() && !(i + 1 < lineas.length && lineas[i].includes('|') && esSeparadorTabla(lineas[i + 1])) && !/^(#{1,3})\s+/.test(lineas[i]) && !/^\s*(?:[-*]|\d+\.)\s+/.test(lineas[i])) {
-                parrafo.push(lineas[i++]);
-            }
-            salida.push(`<p class="my-2 whitespace-pre-wrap">${inline(parrafo.join('\n')).replace(/\n/g, '<br>')}</p>`);
-        }
-        return salida.join('');
-    }
-
     document.querySelectorAll('#chatContainer .markdown-content').forEach(function(elemento) {
-        elemento.innerHTML = renderizarMarkdown(elemento.textContent);
+        elemento.innerHTML = ChatEngine.renderMarkdown(elemento.textContent);
     });
 
     chatForm.addEventListener('submit', async (e) => {
@@ -264,7 +222,7 @@
         div.className = 'flex justify-end';
         div.innerHTML = `
             <div class="max-w-xl bg-blue-600 text-white p-3.5 rounded-2xl rounded-tr-none text-sm shadow break-words overflow-hidden">
-                <p class="whitespace-pre-wrap break-words">${escaparHtml(texto)}</p>
+                <p class="whitespace-pre-wrap break-words">${ChatEngine.escapeHtml(texto)}</p>
                 <span class="block text-[10px] text-blue-200 text-right mt-1">Ahora</span>
             </div>
         `;
@@ -281,18 +239,27 @@
         if (resp.citas && resp.citas.length > 0) {
             citasHtml = `<div class="mt-2 pt-2 border-t border-slate-200 text-xs text-slate-600 space-y-1">
                 <span class="font-semibold block text-[11px] text-blue-700">Leyes Consultadas:</span>
-                ${resp.citas.map(c => `<div class="bg-slate-50 p-1.5 rounded border border-slate-200 break-words">📜 ${escaparHtml(c.ley)} ${c.siglas ? '('+escaparHtml(c.siglas)+')' : ''} - Art. ${escaparHtml(c.articulo || '—')} - Reforma: ${escaparHtml(c.fecha_reforma)}</div>`).join('')}
+                ${resp.citas.map(c => `<div class="bg-slate-50 p-1.5 rounded border border-slate-200 break-words">📜 ${ChatEngine.escapeHtml(c.ley)} ${c.siglas ? '('+ChatEngine.escapeHtml(c.siglas)+')' : ''} - Art. ${ChatEngine.escapeHtml(c.articulo || '—')} - Reforma: ${ChatEngine.escapeHtml(c.fecha_reforma)}</div>`).join('')}
             </div>`;
         }
 
         div.innerHTML = `
             <div class="max-w-2xl bg-white border border-slate-200 text-slate-800 p-4 rounded-2xl rounded-tl-none text-sm space-y-2 shadow-sm break-words overflow-hidden">
-                <div class="markdown-content leading-relaxed break-words">${renderizarMarkdown(resp.contenido)}</div>
+                <div class="markdown-content leading-relaxed break-words">${ChatEngine.renderMarkdown(resp.contenido)}</div>
                 ${citasHtml}
                 <div class="flex items-center justify-between pt-1 text-[10px] text-slate-400 border-t border-slate-200">
-                    <span>${resp.proveedor ? 'Proveedor: <strong class="text-slate-600">' + escaparHtml(resp.proveedor) + '</strong>' : 'Asistente'}</span>
-                    ${resp.conmutado ? '<span class="text-amber-400 font-semibold">⚡ Fallback Activo</span>' : ''}
-                    <span>${resp.fecha}</span>
+                    <div class="flex items-center space-x-2">
+                        <button type="button" onclick="ChatEngine.copiarAlPortapapeles(this, this.closest('.max-w-2xl').querySelector('.markdown-content').innerText)" class="hover:text-blue-600 flex items-center transition" title="Copiar respuesta al portapapeles">
+                            <svg class="w-3.5 h-3.5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"/></svg>
+                            <span>Copiar</span>
+                        </button>
+                        <span>·</span>
+                        <span>${resp.proveedor ? 'Proveedor: <strong class="text-slate-600">' + ChatEngine.escapeHtml(resp.proveedor) + '</strong>' : 'Asistente'}</span>
+                    </div>
+                    <div class="flex items-center space-x-1.5">
+                        ${resp.conmutado ? '<span class="text-amber-400 font-semibold">⚡ Fallback Activo</span>' : ''}
+                        <span>${resp.fecha}</span>
+                    </div>
                 </div>
             </div>
         `;
