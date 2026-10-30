@@ -118,7 +118,7 @@
                         <span class="h-2 w-2 animate-bounce rounded-full bg-blue-500 [animation-delay:150ms]"></span>
                         <span class="h-2 w-2 animate-bounce rounded-full bg-blue-500 [animation-delay:300ms]"></span>
                     </span>
-                    <span>Preparando una respuesta...</span>
+                    <span id="estadoRespuestaPendiente">Preparando una respuesta...</span>
                 </div>
             </div>
         </div>
@@ -128,11 +128,12 @@
             <form id="chatForm" class="flex items-center space-x-3">
                 {% csrf_token %}
                 <input type="hidden" id="conversacionId" value="{{ conversacion_actual.id|default:'' }}">
-                <textarea id="mensajeInput" rows="1" maxlength="4000" placeholder="Escribe tu mensaje o consulta sobre legislación vigente..." class="flex-1 min-h-[3rem] bg-slate-100 border border-slate-200 text-slate-800 text-sm rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500 resize-y"></textarea>
+                <textarea id="mensajeInput" rows="1" maxlength="4000" placeholder="Escribe tu mensaje o consulta sobre legislación vigente..." class="flex-1 min-h-[3rem] max-h-40 bg-slate-100 border border-slate-200 text-slate-800 text-sm rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"></textarea>
                 <button type="submit" id="btnEnviar" class="bg-blue-600 hover:bg-blue-700 text-white font-semibold text-sm px-5 py-3 rounded-xl shadow transition flex items-center justify-center">
                     Enviar
                 </button>
             </form>
+            <p class="mt-2 text-right text-[10px] text-slate-400">Ctrl + Enter para enviar</p>
         </footer>
 
     </main>
@@ -161,8 +162,21 @@
     const btnEnviar = document.getElementById('btnEnviar');
     const respuestaPendiente = document.getElementById('respuestaPendiente');
 
+    function ajustarAlturaInput() {
+        mensajeInput.style.height = 'auto';
+        mensajeInput.style.height = Math.min(mensajeInput.scrollHeight, 160) + 'px';
+    }
+
     document.querySelectorAll('#chatContainer .markdown-content').forEach(function(elemento) {
         elemento.innerHTML = ChatEngine.renderMarkdown(elemento.textContent);
+    });
+
+    mensajeInput.addEventListener('input', ajustarAlturaInput);
+    mensajeInput.addEventListener('keydown', function (event) {
+        if (event.key === 'Enter' && (event.ctrlKey || event.metaKey)) {
+            event.preventDefault();
+            chatForm.requestSubmit();
+        }
     });
 
     chatForm.addEventListener('submit', async (e) => {
@@ -178,6 +192,7 @@
         btnEnviar.disabled = true;
         btnEnviar.classList.add('opacity-60', 'cursor-not-allowed');
         respuestaPendiente.classList.remove('hidden');
+        document.getElementById('estadoRespuestaPendiente').textContent = 'Consultando normativa vigente...';
 
         try {
             const response = await fetch("{% url 'gestor_enviar_mensaje_api' %}", {
@@ -192,7 +207,14 @@
                 })
             });
 
-            const data = await response.json();
+            let data;
+            try {
+                data = await response.json();
+            } catch (_) {
+                throw new Error(response.status === 403
+                    ? 'La sesión expiró. Recarga la página e inténtalo de nuevo.'
+                    : 'No se pudo interpretar la respuesta del servidor.');
+            }
             if (!response.ok || !data.ok || !data.respuesta) {
                 throw new Error(data.error || 'Ocurrió un error al procesar la solicitud.');
             }

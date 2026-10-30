@@ -89,11 +89,12 @@
             <form id="chatForm" class="flex items-center space-x-3">
                 {% csrf_token %}
                 <input type="hidden" id="conversacionId" value="{{ conversacion_actual.id|default:'' }}">
-                <input type="text" id="chatInput" maxlength="4000" placeholder="Escribe tu pregunta sobre legislación vigente..." class="flex-1 px-4 py-3 bg-slate-100 text-slate-800 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 focus:bg-white focus:outline-none transition">
+                <textarea id="chatInput" maxlength="4000" rows="1" placeholder="Escribe tu pregunta sobre legislación vigente..." class="flex-1 resize-none px-4 py-3 bg-slate-100 text-slate-800 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 focus:bg-white focus:outline-none transition"></textarea>
                 <button type="submit" id="btnEnviar" class="bg-blue-600 hover:bg-blue-700 text-white font-semibold px-5 py-3 rounded-xl text-sm shadow transition">
                     Enviar
                 </button>
             </form>
+            <p class="mt-2 text-right text-[10px] text-slate-400">Ctrl + Enter para enviar</p>
         </footer>
     </main>
 </div>
@@ -108,6 +109,28 @@
     const thinkingIndicator = document.getElementById('thinkingIndicator');
     const sendButton = document.getElementById('btnEnviar');
     const quotaBadge = document.getElementById('badgeCuota');
+
+    function ajustarAlturaInput() {
+        chatInput.style.height = 'auto';
+        chatInput.style.height = Math.min(chatInput.scrollHeight, 160) + 'px';
+    }
+
+    function hayEspacioParaEscribir() {
+        const restantes = {{ mensajes_restantes }};
+        return restantes > 0;
+    }
+
+    function actualizarEstadoCuota() {
+        const restantes = Number(quotaBadge?.textContent.split('/')[0].trim()) || 0;
+        if (restantes <= 0) {
+            chatInput.disabled = true;
+            sendButton.disabled = true;
+            window.showAppToast('Has agotado tus mensajes disponibles para hoy.', 'warning');
+        } else {
+            chatInput.disabled = false;
+            sendButton.disabled = false;
+        }
+    }
 
     function userMessageHtml(message, time) {
         return `<div class="flex justify-end"><div class="max-w-xl break-words overflow-hidden rounded-2xl rounded-tr-none bg-blue-600 px-4 py-3 text-sm text-white shadow-sm"><p class="whitespace-pre-wrap break-words">${ChatEngine.escapeHtml(message)}</p><span class="mt-1 block text-right text-[10px] text-blue-200">${ChatEngine.escapeHtml(time)}</span></div></div>`;
@@ -127,11 +150,20 @@
         element.innerHTML = ChatEngine.renderMarkdown(element.textContent);
     });
     chatContainer.scrollTop = chatContainer.scrollHeight;
+    actualizarEstadoCuota();
+    chatInput.addEventListener('input', ajustarAlturaInput);
+    chatInput.addEventListener('keydown', function (event) {
+        if (event.key === 'Enter' && (event.ctrlKey || event.metaKey)) {
+            event.preventDefault();
+            chatForm.requestSubmit();
+        }
+    });
 
     chatForm.addEventListener('submit', async function (event) {
         event.preventDefault();
         const message = chatInput.value.trim();
-        if (!message || sendButton.disabled) return;
+        if (!message || sendButton.disabled || !hayEspacioParaEscribir()) return;
+        thinkingIndicator.querySelector('span').textContent = 'Consultando normativa vigente...';
 
         const pendingMessage = document.createElement('div');
         pendingMessage.dataset.pendingMessage = 'true';
@@ -154,7 +186,14 @@
                     conversacion_id: conversationIdInput.value || null
                 })
             });
-            const data = await response.json();
+            let data;
+            try {
+                data = await response.json();
+            } catch (_) {
+                throw new Error(response.status === 403
+                    ? 'La sesión expiró. Recarga la página e inténtalo de nuevo.'
+                    : 'No se pudo interpretar la respuesta del servidor.');
+            }
             if (!response.ok || !data.ok || !data.respuesta) {
                 throw new Error(data.error || 'No se pudo procesar la consulta.');
             }
@@ -168,6 +207,7 @@
             if (emptyState) emptyState.remove();
             pendingMessage.outerHTML = userMessageHtml(data.pregunta.contenido, data.pregunta.fecha) + assistantMessageHtml(data.respuesta);
             if (quotaBadge) quotaBadge.textContent = `${data.mensajes_restantes} / {{ request.user.cuota_diaria_mensajes }} restantes`;
+            actualizarEstadoCuota();
             chatContainer.scrollTop = chatContainer.scrollHeight;
         } catch (error) {
             pendingMessage.remove();
@@ -175,9 +215,9 @@
             window.showAppToast(error.message || 'No se pudo conectar con el asistente. Intentalo de nuevo.', 'error');
         } finally {
             thinkingIndicator.classList.add('hidden');
-            chatInput.disabled = false;
             sendButton.disabled = false;
             sendButton.classList.remove('opacity-60', 'cursor-not-allowed');
+            actualizarEstadoCuota();
             chatInput.focus();
         }
     });

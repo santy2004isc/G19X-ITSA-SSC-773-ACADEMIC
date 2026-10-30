@@ -11,7 +11,10 @@
         </a>
         {% if request.resolver_match.url_name == 'chat_interfaz' or request.resolver_match.url_name == 'chat_conversacion' %}
         <div class="user-chat-tools">
-            <div class="user-quota"><span>Disponibles hoy</span><strong id="badgeCuota">{{ mensajes_restantes }} / {{ request.user.cuota_diaria_mensajes }} restantes</strong></div>
+            <div class="user-quota{% if mensajes_restantes <= 10 %} is-low{% endif %}">
+                <span>Disponibles hoy</span>
+                <strong id="badgeCuota">{{ mensajes_restantes }} / {{ request.user.cuota_diaria_mensajes }} restantes</strong>
+            </div>
             <form method="post" action="{% url 'chat_nueva_conversacion' %}">
                 {% csrf_token %}
                 <button type="submit" class="role-sidebar-link user-new-chat" title="Iniciar nueva consulta">

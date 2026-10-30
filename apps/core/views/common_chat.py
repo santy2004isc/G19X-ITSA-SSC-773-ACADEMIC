@@ -4,9 +4,11 @@ from uuid import UUID
 from django.http import Http404, JsonResponse
 from django.shortcuts import get_object_or_404
 from django.urls import reverse
+from django.db import transaction
+from django.db.models import F
 
-from ..models import Conversacion
-from ..services.chat_service import MAX_LONGITUD_MENSAJE, procesar_mensaje_chat
+from ..models import Conversacion, Usuario
+from ..services.chat_service import MAX_LONGITUD_MENSAJE, clasificar_mensaje, procesar_mensaje_chat
 
 logger = logging.getLogger(__name__)
 
@@ -44,6 +46,21 @@ def ejecutar_envio_mensaje(request, es_gestor=False):
             'error': f'El mensaje no puede superar {MAX_LONGITUD_MENSAJE} caracteres.'
         }, status=400)
 
+    cuota_reservada = False
+    if not es_gestor and clasificar_mensaje(pregunta) == 'juridico':
+        with transaction.atomic():
+            reservada = Usuario.objects.filter(
+                pk=usuario.pk,
+                mensajes_usados_hoy__lt=F('cuota_diaria_mensajes'),
+            ).update(mensajes_usados_hoy=F('mensajes_usados_hoy') + 1)
+        if not reservada:
+            usuario.refresh_from_db(fields=['mensajes_usados_hoy', 'cuota_diaria_mensajes'])
+            return JsonResponse({
+                'error': f'Ha alcanzado su límite diario de {usuario.cuota_diaria_mensajes} mensajes.'
+            }, status=429)
+        usuario.refresh_from_db(fields=['mensajes_usados_hoy'])
+        cuota_reservada = True
+
     conversacion_id = data.get('conversacion_id')
     if conversacion_id is not None and not isinstance(conversacion_id, str):
         return JsonResponse({'error': 'El identificador de conversación no es válido.'}, status=400)
@@ -69,7 +86,7 @@ def ejecutar_envio_mensaje(request, es_gestor=False):
             conversacion,
             pregunta,
             usuario,
-            consumir_cuota=not es_gestor,
+            consumir_cuota=False,
         )
 
         if es_gestor:
@@ -101,8 +118,16 @@ def ejecutar_envio_mensaje(request, es_gestor=False):
         })
 
     except Http404:
+        if cuota_reservada:
+            Usuario.objects.filter(pk=usuario.pk, mensajes_usados_hoy__gt=0).update(
+                mensajes_usados_hoy=F('mensajes_usados_hoy') - 1
+            )
         return JsonResponse({'error': 'La conversación no existe.'}, status=404)
     except Exception:
+        if cuota_reservada:
+            Usuario.objects.filter(pk=usuario.pk, mensajes_usados_hoy__gt=0).update(
+                mensajes_usados_hoy=F('mensajes_usados_hoy') - 1
+            )
         rol_desc = "gestor" if es_gestor else "usuario"
         logger.exception(f"Error interno al procesar un mensaje de {rol_desc}.")
         return JsonResponse(
