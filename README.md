@@ -6,7 +6,7 @@
 [![Django](https://img.shields.io/badge/Django-5.x-green.svg)](https://www.djangoproject.com/)
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16%20%2B%20pgvector-blue.svg)](https://github.com/pgvector/pgvector)
 [![TailwindCSS](https://img.shields.io/badge/Tailwind-CSS%20Standalone-38bdf8.svg)](https://tailwindcss.com/)
-[![Tests](https://img.shields.io/badge/Tests-42%20casos-informational.svg)]()
+[![Tests](https://img.shields.io/badge/Tests-43%20casos-informational.svg)]()
 [![Docker](https://img.shields.io/badge/Docker-Ready-2496ed.svg)](https://www.docker.com/)
 
 ---
@@ -21,6 +21,9 @@
 * **Embeddings Locales:** Generación de representaciones vectoriales densas de 768 dimensiones ejecutada en el backend local utilizando `sentence-transformers` (`paraphrase-multilingual-mpnet-base-v2`), eliminando costos y cuotas externas para la indexación.
 * **Índices Vectoriales HNSW en `pgvector`:** Índice `HnswIndex` (`vector_cosine_ops`) para recuperar candidatos por distancia coseno.
 * **Búsqueda Híbrida con Reciprocal Rank Fusion (RRF):** Fusión sinérgica entre la búsqueda semántica vectorial y el motor de *Full-Text Search* en español de PostgreSQL (`SearchVector` / `SearchQuery`), garantizando máxima precisión en las leyes, siglas (*"LFT"*, *"CPEUM"*) o términos literales.
+* **Priorización por Ley Mencionada:** Cuando la pregunta contiene el nombre oficial o las siglas de una ley vigente, la recuperación se limita inicialmente a esa legislación para evitar mezclar contexto de normas distintas.
+* **Historial Conversacional Eficiente:** Los mensajes anteriores se mantienen como resumen compacto, mientras que los últimos intercambios se conservan completos. Esto reduce el contexto enviado a la IA sin perder la continuidad inmediata de la conversación.
+* **Respuestas Completadas y Fallback:** Las respuestas pueden llegar hasta 2000 tokens; si Groq alcanza ese límite, el sistema solicita una continuación sin repetir el texto ya generado. Si Groq falla, la consulta conmuta automáticamente a Gemini.
 * **Control de cuota diaria:** Cuota configurable por usuario (50 mensajes jurídicos diarios por defecto), con reinicio por fecha; saludos y cortesías no consumen cuota.
 * **Clasificador de saludos:** Los saludos y mensajes breves de cortesía reciben una respuesta inmediata sin invocar los modelos de IA ni consultar la base normativa.
 * **Frontend Optimizado con Tailwind CSS Compilado:** Hoja de estilos estática minificada sin dependencias de CDN en tiempo de ejecución.
@@ -78,7 +81,7 @@ El sistema clasifica primero el mensaje: los saludos y las cortesías se respond
 │   │   ├── decorators.py           # @roles_requeridos para control de acceso RBAC
 │   │   ├── middleware.py           # AutenticacionRequeridaMiddleware (Zero-Trust)
 │   │   ├── models.py               # Usuario, LeyFederal, FragmentoNormativo, Conversacion, Mensaje, RegistroFalloAPI
-│   │   ├── tests.py                # Suite de 42 casos de prueba
+│   │   ├── tests.py                # Suite de 43 casos de prueba registrados
 │   │   ├── urls.py
 │   │   └── __init__.py
 │   └── __init__.py
@@ -185,7 +188,7 @@ Abre tu navegador e ingresa a: **[http://localhost:8000](http://localhost:8000)*
 
 ## Ejecución de Pruebas Automatizadas
 
-El proyecto incluye **42 casos de prueba** para cuotas, middleware, permisos por rol, procesamiento y deduplicación de PDF, encabezados transitorios, fallback de proveedores y búsqueda híbrida:
+El proyecto incluye **43 casos de prueba registrados** para cuotas, middleware, permisos por rol, procesamiento y deduplicación de PDF, encabezados transitorios, historial conversacional, fallback de proveedores y búsqueda híbrida:
 
 ```bash
 docker-compose exec web python manage.py test apps.core
@@ -224,14 +227,15 @@ flowchart TD
     subgraph Consulta["Fase de Consulta (Rol Usuario)"]
         Query["Pregunta en lenguaje natural"] --> HybridSearch["Búsqueda Híbrida: Vectorial + Léxica (RRF)"]
         HybridSearch --> Context["Recuperación de fragmentos vigentes"]
-        Context --> LLM["Orquestador: Groq (timeout <=5s) -> Fallback Gemini"]
+        Context --> History["Resumen antiguo + últimos mensajes completos"]
+        History --> LLM["Groq (2000 tokens) -> Continuación o fallback Gemini"]
         LLM --> Response["Respuesta fundamentada con citas de ley"]
     end
 ```
 
 1. **Autenticación:** Inicio de sesión con correo y contraseña. Los nuevos usuarios pueden registrarse mediante el formulario público con rol de *Usuario Registrado*.
 2. **Carga e Ingesta (Gestor):** Selecciona o arrastra un PDF de Ley Federal vigente. Se extrae el texto legible, se divide en fragmentos acotados con solapamiento y se indexa en `pgvector`. La deduplicación por hash del texto evita volver a procesar contenido sin cambios aunque cambien los metadatos del PDF. La aplicación no guarda el PDF como registro permanente.
-3. **Chat Jurídico (Usuario Registrado):** Realiza preguntas normativas en lenguaje natural. El motor híbrido localiza y el LLM responde citando la ley, el artículo correspondiente y su última fecha de reforma registrada.
+3. **Chat Jurídico (Usuario Registrado y Gestor):** Realiza preguntas normativas en lenguaje natural. El motor híbrido localiza fragmentos de la ley consultada y prioriza el contexto que coincide con su nombre oficial o siglas. El contexto antiguo se resume, los últimos mensajes se conservan completos y el LLM responde citando la ley, el artículo correspondiente y su última fecha de reforma registrada. Cuando una respuesta alcanza el límite de salida, el sistema solicita su continuación.
 4. **Supervisión y Telemetría (Administrador):** Monitoreo en tiempo real de usuarios, estado de cuentas y registros de conmutación de APIs.
 
 ---

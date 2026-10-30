@@ -23,6 +23,8 @@ MENSAJE_SATURACION_APIS = (
 )
 
 MAX_LONGITUD_MENSAJE = 4000
+MAX_TOKENS_RESPUESTA = 2000
+MAX_CARACTERES_HISTORIAL_RESUMIDO = 1200
 
 _MENSAJE_CORTESIA = re.compile(
     r"^(?:gracias|muchas gracias|te agradezco|entendido|"
@@ -94,6 +96,19 @@ def buscar_contexto_normativo(pregunta_usuario, top_k=4):
     """
     vector_pregunta = generar_vector_embedding(pregunta_usuario)
     candidatos_k = max(top_k * 3, 10)
+    leyes_coincidentes = []
+    pregunta_normalizada = _normalizar_texto_busqueda(pregunta_usuario)
+
+    for ley in LeyFederal.objects.filter(estado=LeyFederal.Estado.VIGENTE).only('id', 'nombre', 'siglas'):
+        nombre_normalizado = _normalizar_texto_busqueda(ley.nombre)
+        siglas_normalizadas = _normalizar_texto_busqueda(ley.siglas or '')
+        nombre_coincide = len(nombre_normalizado) >= 8 and nombre_normalizado in pregunta_normalizada
+        siglas_coinciden = (
+            siglas_normalizadas
+            and re.search(rf"\b{re.escape(siglas_normalizadas)}\b", pregunta_normalizada)
+        )
+        if nombre_coincide or siglas_coinciden:
+            leyes_coincidentes.append(ley.id)
     
     candidatos_dict = {}
     rrf_scores = {}
@@ -101,9 +116,12 @@ def buscar_contexto_normativo(pregunta_usuario, top_k=4):
 
     # 1. Recuperación Vectorial (Semántica mediante CosineDistance y HNSW)
     try:
-        qs_vectorial = FragmentoNormativo.objects.select_related('ley').filter(
+        consulta_vectorial = FragmentoNormativo.objects.select_related('ley').filter(
             ley__estado=LeyFederal.Estado.VIGENTE
-        ).annotate(
+        )
+        if leyes_coincidentes:
+            consulta_vectorial = consulta_vectorial.filter(ley_id__in=leyes_coincidentes)
+        qs_vectorial = consulta_vectorial.annotate(
             distancia=CosineDistance('vector_embedding', vector_pregunta)
         ).order_by('distancia')[:candidatos_k]
 
@@ -119,9 +137,12 @@ def buscar_contexto_normativo(pregunta_usuario, top_k=4):
         search_query = SearchQuery(pregunta_usuario, config='spanish', search_type='websearch')
         search_vector = SearchVector('contenido_fragmento', config='spanish')
 
-        qs_lexica = FragmentoNormativo.objects.select_related('ley').filter(
+        consulta_lexica = FragmentoNormativo.objects.select_related('ley').filter(
             ley__estado=LeyFederal.Estado.VIGENTE
-        ).annotate(
+        )
+        if leyes_coincidentes:
+            consulta_lexica = consulta_lexica.filter(ley_id__in=leyes_coincidentes)
+        qs_lexica = consulta_lexica.annotate(
             rank_lex=SearchRank(search_vector, search_query)
         ).filter(
             rank_lex__gt=0.01
@@ -164,6 +185,51 @@ def buscar_contexto_normativo(pregunta_usuario, top_k=4):
     return contexto_texto, citas
 
 
+def _normalizar_texto_busqueda(texto):
+    normalizado = unicodedata.normalize("NFKD", texto or "")
+    normalizado = "".join(
+        caracter for caracter in normalizado
+        if not unicodedata.combining(caracter)
+    )
+    normalizado = re.sub(r"[^\w\s]", " ", normalizado.lower())
+    return " ".join(normalizado.split())
+
+
+def resumir_historial_mensajes(mensajes, max_caracteres=MAX_CARACTERES_HISTORIAL_RESUMIDO):
+    """Convierte mensajes antiguos en contexto breve para que la conversación no crezca sin límite."""
+    fragmentos = []
+    for mensaje in mensajes:
+        texto = (mensaje.get('texto') or '').strip()
+        if not texto:
+            continue
+        texto = " ".join(texto.split())
+        emisor = "Usuario" if mensaje.get('emisor') in (Mensaje.Emisor.USUARIO, 'USUARIO', 'user') else "Asistente"
+        limite_mensaje = 280 if emisor == "Usuario" else 360
+        if len(texto) > limite_mensaje:
+            texto = texto[:limite_mensaje].rstrip() + "..."
+        fragmentos.append(f"{emisor}: {texto}")
+
+    resumen = " | ".join(fragmentos)
+    if len(resumen) > max_caracteres:
+        resumen = resumen[-max_caracteres:].rstrip()
+        punto = resumen.find(". ")
+        if punto >= 0 and punto < 200:
+            resumen = resumen[punto + 2:]
+        resumen = "..." + resumen
+    return resumen
+
+
+def preparar_contexto_conversacion(mensajes):
+    """Separa el contexto antiguo resumido de los últimos intercambios completos."""
+    if not mensajes:
+        return "", []
+
+    antiguos = mensajes[:-4] if len(mensajes) > 4 else []
+    recientes = mensajes[-4:]
+    resumen = resumir_historial_mensajes(antiguos)
+    return resumen, recientes
+
+
 def procesar_mensaje_chat(conversacion, pregunta, usuario, consumir_cuota=False):
     """Genera una respuesta fuera de la transacción y persiste el intercambio de forma atómica."""
     tipo_mensaje = clasificar_mensaje(pregunta)
@@ -175,10 +241,10 @@ def procesar_mensaje_chat(conversacion, pregunta, usuario, consumir_cuota=False)
     else:
         contexto, citas = buscar_contexto_normativo(pregunta)
 
-        # Contexto conversacional multi-turno (últimos 4 mensajes recientes)
+        # Contexto conversacional: resume lo anterior y conserva completos los últimos intercambios.
         historial_previo = []
         if not conversacion._state.adding and conversacion.pk:
-            mensajes_qs = list(conversacion.mensajes.order_by('-fecha_envio')[:4])
+            mensajes_qs = list(conversacion.mensajes.order_by('-fecha_envio')[:12])
             mensajes_qs.reverse()
             historial_previo = [
                 {'emisor': m.emisor, 'texto': m.contenido_texto}
@@ -230,6 +296,8 @@ def generar_respuesta_ia_con_fallback(pregunta_usuario, contexto_normativo, usua
             False
         )
 
+    resumen_historial, mensajes_recientes = preparar_contexto_conversacion(historial_mensajes or [])
+
     system_prompt = (
         "Eres un asistente legal experto en la legislación federal vigente de México. "
         "Tu objetivo es responder a la pregunta del usuario utilizando EXCLUSIVAMENTE el contexto normativo proporcionado.\n\n"
@@ -246,7 +314,20 @@ def generar_respuesta_ia_con_fallback(pregunta_usuario, contexto_normativo, usua
         "3. No menciones la vigencia o estado de las leyes, ya que todas las normas proporcionadas están vigentes."
     )
 
-    user_prompt = f"Contexto Normativo Vigente:\n{contexto_normativo}\n\nPregunta del usuario: {pregunta_usuario}"
+    contexto_conversacion = ""
+    if resumen_historial:
+        contexto_conversacion += f"\nResumen compacto del contexto anterior:\n{resumen_historial}\n"
+    if mensajes_recientes:
+        contexto_conversacion += "\nMensajes recientes de la conversación:\n" + "\n".join(
+            f"- {'Asistente' if item.get('emisor') in (Mensaje.Emisor.SISTEMA, 'SISTEMA', 'assistant') else 'Usuario'}: {item.get('texto', '').strip()}"
+            for item in mensajes_recientes
+            if item.get('texto', '').strip()
+        )
+
+    user_prompt = (
+        f"Contexto Normativo Vigente:\n{contexto_normativo}\n"
+        f"{contexto_conversacion}\n\nPregunta actual del usuario: {pregunta_usuario}"
+    )
 
     proveedor_usado = Mensaje.ProveedorIA.GROQ
     conmutado = False
@@ -257,8 +338,8 @@ def generar_respuesta_ia_con_fallback(pregunta_usuario, contexto_normativo, usua
         modelo_groq = modelo_solicitado if isinstance(modelo_solicitado, str) else settings.GROQ_MODEL
         
         mensajes_groq = [{"role": "system", "content": system_prompt}]
-        if historial_mensajes:
-            for item in historial_mensajes[-4:]:
+        if mensajes_recientes:
+            for item in mensajes_recientes:
                 rol = "assistant" if item.get('emisor') in (Mensaje.Emisor.SISTEMA, 'SISTEMA', 'assistant') else "user"
                 texto_item = item.get('texto', '').strip()
                 if texto_item:
@@ -269,9 +350,23 @@ def generar_respuesta_ia_con_fallback(pregunta_usuario, contexto_normativo, usua
             model=modelo_groq,
             messages=mensajes_groq,
             temperature=0.3,
-            max_tokens=1000
+            max_tokens=MAX_TOKENS_RESPUESTA
         )
-        return response.choices[0].message.content, proveedor_usado, conmutado
+        respuesta = response.choices[0].message.content or ""
+        motivo_final = getattr(response.choices[0], 'finish_reason', None)
+        if motivo_final == 'length':
+            mensajes_continuacion = mensajes_groq + [
+                {"role": "assistant", "content": respuesta},
+                {"role": "user", "content": "Continúa la respuesta desde el último punto, sin repetir texto, hasta completar la explicación."},
+            ]
+            continuacion = groq_client.chat.completions.create(
+                model=modelo_groq,
+                messages=mensajes_continuacion,
+                temperature=0.3,
+                max_tokens=MAX_TOKENS_RESPUESTA,
+            )
+            respuesta += "\n\n" + (continuacion.choices[0].message.content or "")
+        return respuesta, proveedor_usado, conmutado
 
     except Exception as e_groq:
         # 2. FALLBACK AUTOMÁTICO A GOOGLE GEMINI (Respaldo por Rate Limit o Timeout)
@@ -280,19 +375,8 @@ def generar_respuesta_ia_con_fallback(pregunta_usuario, contexto_normativo, usua
         codigo_error_groq = type(e_groq).__name__
         
         contenido_gemini = user_prompt
-        if historial_mensajes:
-            lineas_historial = [
-                f"- {'Asistente' if item.get('emisor') in (Mensaje.Emisor.SISTEMA, 'SISTEMA', 'assistant') else 'Usuario'}: {item.get('texto', '').strip()}"
-                for item in historial_mensajes[-4:]
-                if item.get('texto', '').strip()
-            ]
-            if lineas_historial:
-                contenido_gemini = (
-                    "Historial reciente de la conversación:\n"
-                    + "\n".join(lineas_historial)
-                    + "\n\n"
-                    + user_prompt
-                )
+        if resumen_historial or mensajes_recientes:
+            contenido_gemini = user_prompt
 
         for intento in range(2):
             try:

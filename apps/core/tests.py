@@ -23,6 +23,8 @@ from .services.chat_service import (
     clasificar_mensaje,
     generar_respuesta_ia_con_fallback,
     MENSAJE_SATURACION_APIS,
+    preparar_contexto_conversacion,
+    resumir_historial_mensajes,
 )
 
 
@@ -727,6 +729,22 @@ class ChatServiceFallbackTest(TestCase):
         )
         self.assertIn("No se encontró información suficiente", respuesta)
         self.assertFalse(conmutado)
+
+    def test_historial_conserva_resumen_y_ultimos_mensajes(self):
+        historial = [
+            {'emisor': 'USUARIO', 'texto': 'Primera pregunta antigua'},
+            {'emisor': 'SISTEMA', 'texto': 'Primera respuesta antigua'},
+            {'emisor': 'USUARIO', 'texto': 'Segunda pregunta antigua'},
+            {'emisor': 'SISTEMA', 'texto': 'Segunda respuesta antigua'},
+            {'emisor': 'USUARIO', 'texto': 'Pregunta reciente'},
+            {'emisor': 'SISTEMA', 'texto': 'Respuesta reciente'},
+        ]
+
+        resumen, recientes = preparar_contexto_conversacion(historial)
+
+        self.assertIn('Primera pregunta antigua', resumen)
+        self.assertEqual(len(recientes), 4)
+        self.assertTrue(len(resumir_historial_mensajes(historial)) <= 1200)
 
     @patch('apps.core.services.chat_service.get_groq_client')
     def test_flujo_exitoso_groq(self, mock_get_groq):
