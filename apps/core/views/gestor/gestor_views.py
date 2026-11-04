@@ -7,8 +7,7 @@ from django.contrib import messages
 from django.core.exceptions import ValidationError
 from django.http import JsonResponse
 from django.db import transaction
-from django.db.models import Q, Func, Value
-from django.db.models.functions import Lower
+from django.db.models import Q
 from django.utils import timezone
 from django.views.decorators.http import require_POST
 
@@ -54,6 +53,8 @@ def _crear_fragmentos_normativos(ley, chunks):
                 en_transitorios = True
         elif transitorio:
             en_transitorios = True
+            if not encabezado:
+                articulo_actual = ""
 
         articulo_detectado = extraer_articulo_fragmento(chunk)
         if articulo_detectado:
@@ -144,54 +145,14 @@ def gestor_dashboard_view(request):
     Muestra todas las leyes federales cargadas en el sistema, permitiendo
     su visualización y actualización independientemente de qué usuario las cargó.
     """
-    query = request.GET.get('q', '').strip()
-    ordenes_permitidos = {
-        'nombre': 'nombre',
-        'siglas': 'siglas',
-        'publicacion': 'fecha_publicacion',
-        'reforma': 'fecha_ultima_reforma',
-        'cargado_por': 'usuario__nombre',
-        'modificacion': 'fecha_modificacion',
-        'estado': 'estado',
-    }
-    orden = request.GET.get('orden', '')
-    direccion = request.GET.get('direccion', 'asc')
-    campo_orden = ordenes_permitidos.get(orden)
-    if direccion not in ('asc', 'desc'):
-        direccion = 'asc'
-
     leyes = LeyFederal.objects.select_related('usuario', 'usuario_modificacion').all()
-
-    if query:
-        # PostgreSQL unaccent permite encontrar, por ejemplo, "Constitucion"
-        # aunque el nombre almacenado contenga "Constitución".
-        class Unaccent(Func):
-            function = 'unaccent'
-            template = "%(function)s(%(expressions)s)"
-        consulta_sin_acentos = Unaccent(Lower(Value(query)))
-        leyes = leyes.annotate(
-            nombre_sin_acentos=Unaccent(Lower('nombre')),
-            siglas_sin_acentos=Unaccent(Lower('siglas')),
-        ).filter(
-            Q(nombre_sin_acentos__contains=consulta_sin_acentos) |
-            Q(siglas_sin_acentos__contains=consulta_sin_acentos)
-        )
-
-    if campo_orden:
-        prefijo_orden = '' if direccion == 'asc' else '-'
-        leyes = leyes.order_by(f'{prefijo_orden}{campo_orden}', 'pk')
-    else:
-        orden = ''
-        leyes = leyes.order_by('-fecha_creacion', 'pk')
+    leyes = leyes.order_by('-fecha_creacion', 'pk')
     total_fragmentos = FragmentoNormativo.objects.count()
 
     context = {
         'leyes': leyes,
         'total_leyes': LeyFederal.objects.count(),
         'total_fragmentos': total_fragmentos,
-        'query': query,
-        'orden_actual': orden,
-        'direccion_actual': direccion,
     }
     return render(request, 'gestor/dashboard.html', context)
 
@@ -294,6 +255,7 @@ def editar_ley_view(request, ley_id):
                 return redirect('gestor_dashboard')
 
             except Exception as e:
+                logger.exception("Error al actualizar la ley %s", ley.pk)
                 messages.error(request, f"Ocurrió un error al actualizar la ley: {str(e)}")
     else:
         form = EditarLeyFederalForm(instance=ley)

@@ -127,11 +127,15 @@ def buscar_contexto_normativo(pregunta_usuario, top_k=4):
         nombre_norm = ley['nombre_norm']
         siglas_norm = ley['siglas_norm']
         nombre_coincide = len(nombre_norm) >= 8 and nombre_norm in pregunta_normalizada
+        alias_coincide = (
+            'codigo civil federal' in pregunta_normalizada
+            and ('codigo civil federal' in nombre_norm or 'ccf' in pregunta_normalizada)
+        )
         siglas_coinciden = (
             siglas_norm
             and re.search(rf"\b{re.escape(siglas_norm)}\b", pregunta_normalizada)
         )
-        if nombre_coincide or siglas_coinciden:
+        if nombre_coincide or siglas_coinciden or alias_coincide and ('codigo civil federal' in nombre_norm):
             leyes_coincidentes.add(ley['id'])
     
     candidatos_dict = {}
@@ -278,6 +282,8 @@ def procesar_mensaje_chat(conversacion, pregunta, usuario, consumir_cuota=False)
             usuario=usuario,
             historial_mensajes=historial_previo,
         )
+        if "únicamente puedo responder consultas relacionadas con el marco legal mexicano" in respuesta_texto.lower():
+            citas = []
 
     with transaction.atomic():
         if conversacion._state.adding:

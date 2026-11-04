@@ -1,8 +1,7 @@
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
-from django.db.models import Count, Q, Func, Value
-from django.db.models.functions import Lower
+from django.db.models import Count
 from functools import wraps
 from ...models import Usuario
 from ...forms.admin_forms import CrearUsuarioAdminForm, EditarUsuarioAdminForm
@@ -21,45 +20,8 @@ def admin_required(view_func):
 @login_required
 @admin_required
 def admin_dashboard_view(request):
-    query = request.GET.get('q', '').strip()
-    ordenes_permitidos = {
-        'nombre': ('nombre', 'apellido'),
-        'correo': ('correo_electronico',),
-        'rol': ('rol',),
-        'estado': ('activo',),
-    }
-    orden = request.GET.get('orden', '')
-    direccion = request.GET.get('direccion', 'asc')
-    campo_orden = ordenes_permitidos.get(orden)
-    if direccion not in ('asc', 'desc'):
-        direccion = 'asc'
-
     usuarios = Usuario.objects.exclude(id=request.user.id).filter(is_superuser=False)
-    if query:
-        # Normaliza ambos lados para ignorar mayusculas y acentos.
-        class Unaccent(Func):
-            function = 'unaccent'
-            template = "%(function)s(%(expressions)s)"
-
-        consulta_sin_acentos = Unaccent(Lower(Value(query)))
-        usuarios = usuarios.annotate(
-            nombre_sin_acentos=Unaccent(Lower('nombre')),
-            apellido_sin_acentos=Unaccent(Lower('apellido')),
-            correo_sin_acentos=Unaccent(Lower('correo_electronico')),
-        ).filter(
-            Q(nombre_sin_acentos__contains=consulta_sin_acentos) |
-            Q(apellido_sin_acentos__contains=consulta_sin_acentos) |
-            Q(correo_sin_acentos__contains=consulta_sin_acentos)
-        )
-    if campo_orden:
-        prefijo_orden = '' if direccion == 'asc' else '-'
-        usuarios = usuarios.order_by(
-            *(f'{prefijo_orden}{campo}' for campo in campo_orden),
-            'pk',
-        )
-    else:
-        orden = ''
-        usuarios = usuarios.order_by('-fecha_registro', 'pk')
+    usuarios = usuarios.order_by('-fecha_registro', 'pk')
 
     conteos = Usuario.objects.aggregate(
         total=Count('pk'),
@@ -72,9 +34,6 @@ def admin_dashboard_view(request):
         'total_gestores': conteos['gestores'],
         'total_registrados': conteos['registrados'],
         'usuarios': usuarios,
-        'query': query,
-        'orden_actual': orden,
-        'direccion_actual': direccion,
     }
     return render(request, 'admin/dashboard.html', context)
 

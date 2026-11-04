@@ -38,6 +38,25 @@ El sistema clasifica primero el mensaje: los saludos y las cortesías se respond
 
 ---
 
+## Cómo probarlo de punta a punta
+
+1. Descarga el **Código Civil Federal** desde la edición vigente del [Diario Oficial de la Federación](https://www.dof.gob.mx/):
+   busca «Código Civil Federal» y abre el PDF publicado o actualizado por última vez.
+2. Crea o inicia sesión con una cuenta de gestor, entra a **Base de conocimiento** y carga ese PDF.
+3. Configura las claves antes de iniciar la aplicación:
+   - `GROQ_API_KEY`: créala en [Groq Console](https://console.groq.com/keys).
+   - `GEMINI_API_KEY`: créala en [Google AI Studio](https://aistudio.google.com/app/apikey).
+   Coloca ambas variables en el archivo `.env`, junto a `DEBUG`, la conexión PostgreSQL y los modelos.
+4. En el chat, prueba estas preguntas:
+   - «¿Qué regula el Código Civil Federal?» — debe citar el **Artículo 1**.
+   - «¿Qué establece el artículo 2 del Código Civil Federal?» — debe citar el **Artículo 2**.
+
+### Reingestión después de una migración
+
+Los fragmentos creados antes de una migración que agregó el campo `articulo` pueden conservarlo vacío y aparecer en el chat como «Art. —». Para volver a calcularlos, elimina la ley desde la interfaz de gestor y súbela de nuevo. La eliminación evita que la deduplicación por hash impida ingerir el mismo PDF; al cargarla nuevamente se crean fragmentos con sus artículos.
+
+---
+
 ## Stack Tecnológico
 
 | Componente | Tecnología | Propósito |

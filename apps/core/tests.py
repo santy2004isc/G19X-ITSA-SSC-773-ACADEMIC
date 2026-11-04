@@ -182,82 +182,6 @@ class ControlDeRolesTest(TestCase):
         response = self.client.get(reverse('gestor_dashboard'))
         self.assertEqual(response.status_code, 200)
 
-    def test_admin_puede_buscar_usuarios_por_nombre_apellido_o_correo(self):
-        self.client.force_login(self.usuario_admin)
-
-        response = self.client.get(reverse('admin_dashboard'), {'q': 'Común'})
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(
-            [usuario.correo_electronico for usuario in response.context['usuarios']],
-            ['usuario@test.com'],
-        )
-
-        response = self.client.get(reverse('admin_dashboard'), {'q': 'Comun'})
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(
-            [usuario.correo_electronico for usuario in response.context['usuarios']],
-            ['usuario@test.com'],
-        )
-
-        response = self.client.get(reverse('admin_dashboard'), {'q': 'Usuario'})
-        self.assertEqual(
-            [usuario.correo_electronico for usuario in response.context['usuarios']],
-            ['usuario@test.com'],
-        )
-
-        response = self.client.get(reverse('admin_dashboard'), {'q': 'GESTOR@TEST.COM'})
-        self.assertEqual(
-            [usuario.correo_electronico for usuario in response.context['usuarios']],
-            ['gestor@test.com'],
-        )
-
-    def test_admin_puede_ordenar_usuarios_por_encabezado(self):
-        self.client.force_login(self.usuario_admin)
-
-        response = self.client.get(
-            reverse('admin_dashboard'),
-            {'orden': 'nombre', 'direccion': 'asc'},
-        )
-
-        nombres = [usuario.nombre for usuario in response.context['usuarios']]
-        self.assertEqual(nombres, sorted(nombres))
-        self.assertEqual(response.context['orden_actual'], 'nombre')
-
-        response = self.client.get(
-            reverse('admin_dashboard'),
-            {'orden': 'nombre', 'direccion': 'desc'},
-        )
-        nombres_descendentes = [usuario.nombre for usuario in response.context['usuarios']]
-        self.assertEqual(nombres_descendentes, sorted(nombres_descendentes, reverse=True))
-
-    def test_gestor_puede_ordenar_leyes_por_encabezado(self):
-        self.client.force_login(self.usuario_gestor)
-        leyes = [
-            LeyFederal.objects.create(
-                nombre='Zeta',
-                siglas='Z',
-                fecha_publicacion=timezone.now().date(),
-                hash_documento='a' * 64,
-            ),
-            LeyFederal.objects.create(
-                nombre='Alfa',
-                siglas='A',
-                fecha_publicacion=timezone.now().date(),
-                hash_documento='b' * 64,
-            ),
-        ]
-
-        response = self.client.get(
-            reverse('gestor_dashboard'),
-            {'orden': 'nombre', 'direccion': 'asc'},
-        )
-
-        self.assertEqual(
-            [ley.id for ley in response.context['leyes']],
-            [leyes[1].id, leyes[0].id],
-        )
-        self.assertEqual(response.context['orden_actual'], 'nombre')
-
     @patch('apps.core.views.gestor.gestor_views.generar_vector_embedding')
     @patch('apps.core.views.gestor.gestor_views.procesar_pdf_en_memoria')
     def test_carga_no_vuelve_a_indexar_contenido_ya_registrado(self, mock_procesar, mock_embedding):
@@ -565,7 +489,10 @@ class PDFProcessorTest(TestCase):
     @patch('apps.core.services.pdf_processor.pypdf.PdfReader')
     def test_hash_contenido_no_cambia_por_bytes_o_metadatos_del_pdf(self, mock_pdf_reader):
         mock_page = MagicMock()
-        mock_page.extract_text.return_value = "Artículo 1.\nTexto de la ley."
+        mock_page.extract_text.return_value = (
+            "Código Civil Federal.\nArtículo 1.\nTexto vigente de la ley federal.\n"
+            + ("Disposición normativa y fracción aplicable. " * 8)
+        )
         mock_pdf_reader.return_value.pages = [mock_page]
 
         hash_archivo_a, hash_contenido_a, chunks_a = procesar_pdf_en_memoria(io.BytesIO(b"pdf con metadata A"))

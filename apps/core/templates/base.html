@@ -366,8 +366,10 @@
                         sortDirection = sortColumn === column ? -sortDirection : 1;
                         sortColumn = column;
                         rows.sort(function (a, b) {
-                            var first = normalize(a.cells[column] && a.cells[column].textContent);
-                            var second = normalize(b.cells[column] && b.cells[column].textContent);
+                            var firstCell = a.cells[column];
+                            var secondCell = b.cells[column];
+                            var first = firstCell && firstCell.dataset.sortValue ? firstCell.dataset.sortValue : normalize(firstCell && firstCell.textContent);
+                            var second = secondCell && secondCell.dataset.sortValue ? secondCell.dataset.sortValue : normalize(secondCell && secondCell.textContent);
                             return first.localeCompare(second, 'es', { numeric: true, sensitivity: 'base' }) * sortDirection;
                         });
                         rows.forEach(function (row) { tbody.appendChild(row); });
