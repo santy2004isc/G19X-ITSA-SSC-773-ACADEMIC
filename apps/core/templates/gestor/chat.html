@@ -93,7 +93,7 @@
                                     {% if msg.proveedor_ia %}
                                     <span>Proveedor: <strong class="text-slate-600">{{ msg.get_proveedor_ia_display|default:msg.proveedor_ia }}</strong></span>
                                     {% else %}
-                                    <span>Asistente</span>
+                                    <span>Agente</span>
                                     {% endif %}
                                 </div>
                                 <div class="flex items-center space-x-1.5">
@@ -276,7 +276,7 @@
                             <span>Copiar</span>
                         </button>
                         <span>·</span>
-                        <span>${resp.proveedor ? 'Proveedor: <strong class="text-slate-600">' + ChatEngine.escapeHtml(resp.proveedor) + '</strong>' : 'Asistente'}</span>
+                        <span>${resp.proveedor ? 'Proveedor: <strong class="text-slate-600">' + ChatEngine.escapeHtml(resp.proveedor) + '</strong>' : 'Agente'}</span>
                     </div>
                     <div class="flex items-center space-x-1.5">
                         ${resp.conmutado ? '<span class="text-amber-400 font-semibold">⚡ Fallback Activo</span>' : ''}

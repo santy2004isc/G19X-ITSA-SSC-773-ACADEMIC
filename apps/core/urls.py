@@ -24,6 +24,7 @@ urlpatterns = [
     path('gestor-panel/documentos/previsualizar/', gestor_views.previsualizar_documento_view, name='gestor_previsualizar_documento'),
     path('gestor-panel/documentos/cargar/', gestor_views.cargar_documento_view, name='gestor_cargar_documento'),
     path('gestor-panel/documentos/<int:ley_id>/editar/', gestor_views.editar_ley_view, name='gestor_editar_ley'),
+    path('gestor-panel/documentos/<int:ley_id>/eliminar/', gestor_views.eliminar_ley_view, name='gestor_eliminar_ley'),
     path('gestor-panel/perfil/', gestor_views.perfil_gestor_view, name='gestor_perfil'),
     path('gestor/chat/', chat_gestor_views.chat_gestor_interfaz_view, name='gestor_chat_interfaz'),
     path('gestor/chat/c/<uuid:conversacion_id>/', chat_gestor_views.chat_gestor_interfaz_view, name='gestor_chat_conversacion'),

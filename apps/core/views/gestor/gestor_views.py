@@ -159,6 +159,19 @@ def gestor_dashboard_view(request):
 
 @login_required
 @gestor_required
+@require_POST
+def eliminar_ley_view(request, ley_id):
+    """Elimina definitivamente una ley y sus fragmentos asociados."""
+    ley = get_object_or_404(LeyFederal, pk=ley_id)
+    nombre_ley = ley.nombre
+    with transaction.atomic():
+        ley.delete()  # FragmentoNormativo.ley usa on_delete=CASCADE.
+    messages.success(request, f"La ley '{nombre_ley}' y sus fragmentos fueron eliminados definitivamente.")
+    return redirect('gestor_dashboard')
+
+
+@login_required
+@gestor_required
 def cargar_documento_view(request):
     """
     Carga e ingesta de PDF -> LeyFederal y FragmentoNormativo.

@@ -40,9 +40,9 @@ El sistema clasifica primero el mensaje: los saludos y las cortesías se respond
 
 ## Cómo probarlo de punta a punta
 
-1. Descarga el **Código Civil Federal** desde la edición vigente del [Diario Oficial de la Federación](https://www.dof.gob.mx/):
+1. Descarga el **Código Civil Federal** desde la edición vigente en [Cámara de diputados (Leyes)](https://www.diputados.gob.mx/LeyesBiblio/index.htm):
    busca «Código Civil Federal» y abre el PDF publicado o actualizado por última vez.
-2. Crea o inicia sesión con una cuenta de gestor, entra a **Base de conocimiento** y carga ese PDF.
+2. Crea una cuenta desde el perfil del administrador o inicia sesión con una cuenta de gestor, entra a **Base de conocimiento** y carga ese PDF.
 3. Configura las claves antes de iniciar la aplicación:
    - `GROQ_API_KEY`: créala en [Groq Console](https://console.groq.com/keys).
    - `GEMINI_API_KEY`: créala en [Google AI Studio](https://aistudio.google.com/app/apikey).
