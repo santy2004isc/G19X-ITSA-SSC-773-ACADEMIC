@@ -1,7 +1,7 @@
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
-from django.db.models import Count
+from django.db.models import Count, Q
 from functools import wraps
 from ...models import Usuario
 from ...forms.admin_forms import CrearUsuarioAdminForm, EditarUsuarioAdminForm
