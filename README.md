@@ -6,7 +6,7 @@
 [![Django](https://img.shields.io/badge/Django-5.x-green.svg)](https://www.djangoproject.com/)
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16%20%2B%20pgvector-blue.svg)](https://github.com/pgvector/pgvector)
 [![TailwindCSS](https://img.shields.io/badge/Tailwind-CSS%20Standalone-38bdf8.svg)](https://tailwindcss.com/)
-[![Tests](https://img.shields.io/badge/Tests-43%20casos-informational.svg)]()
+[![Tests](https://img.shields.io/badge/Tests-42%20casos-informational.svg)]()
 [![Docker](https://img.shields.io/badge/Docker-Ready-2496ed.svg)](https://www.docker.com/)
 
 ---
@@ -69,7 +69,7 @@ Los fragmentos creados antes de una migración que agregó el campo `articulo` p
 | **Base de Datos** | PostgreSQL 16 + `pgvector` | Base de datos relacional y motor vectorial unificado con índice HNSW. |
 | **Búsqueda Léxica** | PostgreSQL Full-Text Search (FTS) | Búsqueda léxica con diccionario en español (`spanish`). |
 | **Vectorización Local** | `sentence-transformers` | Embeddings multilingües de 768 dimensiones. |
-| **Modelos LLM (Inferencia)** | Groq y Google Gemini | Groq como proveedor principal y Gemini (`gemini-3.8-flash`, modelo estable documentado por [Google Gemini API](https://ai.google.dev/gemini-api/docs/models)) como fallback. |
+| **Modelos LLM (Inferencia)** | Groq y Google Gemini | Groq como proveedor principal y Gemini como fallback. El modelo predeterminado configurado para Gemini es `gemini-3.8-flash`. |
 | **Frontend** | Django Templates + Tailwind CSS | Interfaz responsive con estilos estáticos compilados y peticiones AJAX. |
 | **Contenerización** | Docker & Docker Compose | Aislamiento y despliegue unificado de servicios (`web` y `db`). |
 
@@ -103,7 +103,7 @@ Los fragmentos creados antes de una migración que agregó el campo `articulo` p
 │   │   ├── decorators.py           # @roles_requeridos para control de acceso RBAC
 │   │   ├── middleware.py           # AutenticacionRequeridaMiddleware (Zero-Trust)
 │   │   ├── models.py               # Usuario, LeyFederal, FragmentoNormativo, Conversacion, Mensaje, RegistroFalloAPI
-│   │   ├── tests.py                # Suite de 43 casos de prueba registrados
+│   │   ├── tests.py                # Suite de 42 casos de prueba registrados
 │   │   ├── urls.py
 │   │   └── __init__.py
 │   └── __init__.py
@@ -210,7 +210,7 @@ Abre tu navegador e ingresa a: **[http://localhost:8000](http://localhost:8000)*
 
 ## Ejecución de Pruebas Automatizadas
 
-El proyecto incluye **43 casos de prueba registrados** para cuotas, middleware, permisos por rol, procesamiento y deduplicación de PDF, encabezados transitorios, historial conversacional, fallback de proveedores y búsqueda híbrida:
+El proyecto incluye **42 casos de prueba registrados** para cuotas, middleware, permisos por rol, procesamiento y deduplicación de PDF, encabezados transitorios, historial conversacional, fallback de proveedores y búsqueda híbrida:
 
 ```bash
 docker-compose exec web python manage.py test apps.core

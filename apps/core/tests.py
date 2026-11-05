@@ -821,3 +821,26 @@ class BusquedaHibridaTest(TestCase):
         self.assertEqual(len(citas), 1)
         self.assertEqual(citas[0]['siglas'], "LFT")
         self.assertEqual(citas[0]['articulo'], "123")
+
+    def test_identifica_cualquier_ley_cargada_por_nombre_siglas_o_alias_articulo(self):
+        LeyFederal.objects.create(
+            nombre="Código Civil Federal",
+            siglas="CCF",
+            fecha_publicacion=timezone.now().date(),
+            hash_documento="dummyhashccf1234567890abcdef1234567890abcdef1234567890abcdef1234",
+            estado=LeyFederal.Estado.VIGENTE,
+        )
+
+        from .services.chat_service import obtener_leyes_mencionadas
+
+        nombres = {
+            ley['nombre']
+            for ley in obtener_leyes_mencionadas("¿Qué protege el Código Civil Federal?")
+        }
+        siglas = {
+            ley['nombre']
+            for ley in obtener_leyes_mencionadas("¿Qué establece el artículo 123 de la LFT?")
+        }
+
+        self.assertIn("Código Civil Federal", nombres)
+        self.assertIn("Ley Federal del Trabajo", siglas)

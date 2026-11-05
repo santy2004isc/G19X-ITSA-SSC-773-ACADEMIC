@@ -110,6 +110,25 @@ def obtener_catalogo_leyes_vigentes():
     return catalogo
 
 
+def obtener_leyes_mencionadas(pregunta_usuario):
+    """Identifica leyes cargadas por nombre oficial o siglas, sin limitarse a una norma concreta."""
+    pregunta_normalizada = _normalizar_texto_busqueda(pregunta_usuario)
+    mencionadas = []
+
+    for ley in obtener_catalogo_leyes_vigentes():
+        nombre_norm = ley['nombre_norm']
+        siglas_norm = ley['siglas_norm']
+        nombre_coincide = len(nombre_norm) >= 8 and nombre_norm in pregunta_normalizada
+        siglas_coinciden = bool(
+            siglas_norm
+            and re.search(rf"\b{re.escape(siglas_norm)}\b", pregunta_normalizada)
+        )
+        if nombre_coincide or siglas_coinciden:
+            mencionadas.append(ley)
+
+    return mencionadas
+
+
 def buscar_contexto_normativo(pregunta_usuario, top_k=4):
     """
     Búsqueda híbrida (Semántica + Léxica) con fusión de rangos recíprocos (RRF).
@@ -120,23 +139,9 @@ def buscar_contexto_normativo(pregunta_usuario, top_k=4):
     """
     vector_pregunta = generar_vector_embedding(pregunta_usuario)
     candidatos_k = max(top_k * 3, 10)
-    leyes_coincidentes = set()
-    pregunta_normalizada = _normalizar_texto_busqueda(pregunta_usuario)
-
-    for ley in obtener_catalogo_leyes_vigentes():
-        nombre_norm = ley['nombre_norm']
-        siglas_norm = ley['siglas_norm']
-        nombre_coincide = len(nombre_norm) >= 8 and nombre_norm in pregunta_normalizada
-        alias_coincide = (
-            'codigo civil federal' in pregunta_normalizada
-            and ('codigo civil federal' in nombre_norm or 'ccf' in pregunta_normalizada)
-        )
-        siglas_coinciden = (
-            siglas_norm
-            and re.search(rf"\b{re.escape(siglas_norm)}\b", pregunta_normalizada)
-        )
-        if nombre_coincide or siglas_coinciden or alias_coincide and ('codigo civil federal' in nombre_norm):
-            leyes_coincidentes.add(ley['id'])
+    leyes_coincidentes = {
+        ley['id'] for ley in obtener_leyes_mencionadas(pregunta_usuario)
+    }
     
     candidatos_dict = {}
     rrf_scores = {}
@@ -146,7 +151,10 @@ def buscar_contexto_normativo(pregunta_usuario, top_k=4):
     try:
         qs_vectorial = FragmentoNormativo.objects.select_related('ley').filter(
             ley__estado=LeyFederal.Estado.VIGENTE
-        ).annotate(
+        )
+        if leyes_coincidentes:
+            qs_vectorial = qs_vectorial.filter(ley_id__in=leyes_coincidentes)
+        qs_vectorial = qs_vectorial.annotate(
             distancia=CosineDistance('vector_embedding', vector_pregunta)
         ).order_by('distancia')[:candidatos_k]
 
@@ -166,7 +174,10 @@ def buscar_contexto_normativo(pregunta_usuario, top_k=4):
 
         qs_lexica = FragmentoNormativo.objects.select_related('ley').filter(
             ley__estado=LeyFederal.Estado.VIGENTE
-        ).annotate(
+        )
+        if leyes_coincidentes:
+            qs_lexica = qs_lexica.filter(ley_id__in=leyes_coincidentes)
+        qs_lexica = qs_lexica.annotate(
             rank_lex=SearchRank(search_vector, search_query)
         ).filter(
             rank_lex__gt=0.01
@@ -329,15 +340,15 @@ def generar_respuesta_ia_con_fallback(pregunta_usuario, contexto_normativo, usua
         "Eres un asistente legal experto en la legislación federal vigente de México. "
         "Tu objetivo es responder a la pregunta del usuario utilizando EXCLUSIVAMENTE el contexto normativo proporcionado.\n\n"
         "REGLA DE FILTRO / GUARDRAIL DE CONTEXTO:\n"
-        "Si la consulta del usuario es ajena al marco legal mexicano, intenta tratar temas jurídicos de otros países, "
-        "o no está fundamentada en el contexto normativo proporcionado, debes rechazarla respondiendo "
+        "Puedes responder consultas generales o específicas sobre cualquier Ley Federal, código, reglamento o norma federal mexicana cargada, "
+        "aunque la pregunta nombre una norma distinta al Código Civil Federal. Si la consulta es ajena al marco jurídico federal mexicano "
+        "o el contexto proporcionado no permite fundamentarla, debes rechazarla respondiendo "
         "ÚNICAMENTE con el siguiente mensaje estandarizado:\n"
         "\"Lo siento, únicamente puedo responder consultas relacionadas con el marco legal mexicano y fundamentadas en el contexto normativo disponible. Por favor, formula una pregunta dentro de este ámbito.\"\n\n"
         "PAUTAS DE RESPUESTA:\n"
         "1. Explica los conceptos jurídicos en un lenguaje natural, claro, accesible y profesional.\n"
-        "2. Menciona explícitamente el artículo del contexto normativo en que apoyas la respuesta; "
-        "los encabezados indican la ley y el número de artículo. Cita literalmente el texto pertinente "
-        "cuando ayude a fundamentar la explicación y no inventes referencias.\n"
+        "2. Menciona explícitamente el artículo del contexto normativo en que apoyas la respuesta, si existe; "
+        "los encabezados indican la ley y el número de artículo. No inventes artículo, ley ni cita si el contexto no contiene la referencia.\n"
         "3. No menciones la vigencia o estado de las leyes, ya que todas las normas proporcionadas están vigentes."
     )
 
