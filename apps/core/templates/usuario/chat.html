@@ -13,14 +13,14 @@
                 {% for msg in mensajes %}
                     {% if msg.emisor == 'USUARIO' %}
                     <div class="flex justify-end">
-                        <div class="max-w-xl bg-blue-600 text-white rounded-2xl rounded-tr-none px-4 py-3 text-sm shadow-sm break-words overflow-hidden">
+                        <div class="w-full max-w-xl min-w-0 bg-blue-600 text-white rounded-2xl rounded-tr-none px-4 py-3 text-sm shadow-sm break-words overflow-hidden">
                             <p class="whitespace-pre-wrap break-words">{{ msg.contenido_texto }}</p>
                             <span class="block text-right text-[10px] text-blue-200 mt-1">{{ msg.fecha_envio|date:"H:i" }}</span>
                         </div>
                     </div>
                     {% else %}
                     <div class="flex justify-start">
-                        <div class="max-w-2xl bg-white border border-slate-200 rounded-2xl rounded-tl-none p-4 text-sm text-slate-800 shadow-sm space-y-3 break-words overflow-hidden">
+                        <div class="w-full max-w-2xl min-w-0 bg-white border border-slate-200 rounded-2xl rounded-tl-none p-4 text-sm text-slate-800 shadow-sm space-y-3 break-words overflow-hidden">
                             <div class="flex items-center justify-between border-b border-slate-100 pb-1.5 text-xs">
                                 <span class="text-blue-600 font-semibold flex items-center space-x-1">
                                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
@@ -31,7 +31,7 @@
                                 {% endif %}
                             </div>
 
-                            <div class="markdown-content leading-relaxed break-words">{{ msg.contenido_texto }}</div>
+                            <div class="markdown-content min-w-0 w-full leading-relaxed break-words">{{ msg.contenido_texto }}</div>
 
                             {% if msg.citas %}
                             <div class="bg-slate-50 border border-slate-200 rounded-lg p-3 text-xs space-y-1.5 mt-2 break-words">
@@ -133,7 +133,7 @@
     }
 
     function userMessageHtml(message, time) {
-        return `<div class="flex justify-end"><div class="max-w-xl break-words overflow-hidden rounded-2xl rounded-tr-none bg-blue-600 px-4 py-3 text-sm text-white shadow-sm"><p class="whitespace-pre-wrap break-words">${ChatEngine.escapeHtml(message)}</p><span class="mt-1 block text-right text-[10px] text-blue-200">${ChatEngine.escapeHtml(time)}</span></div></div>`;
+        return `<div class="flex justify-end"><div class="w-full max-w-xl min-w-0 break-words overflow-hidden rounded-2xl rounded-tr-none bg-blue-600 px-4 py-3 text-sm text-white shadow-sm"><p class="whitespace-pre-wrap break-words">${ChatEngine.escapeHtml(message)}</p><span class="mt-1 block text-right text-[10px] text-blue-200">${ChatEngine.escapeHtml(time)}</span></div></div>`;
     }
 
     function assistantMessageHtml(answer) {
@@ -143,7 +143,7 @@
         const provider = answer.proveedor
             ? `IA: ${ChatEngine.escapeHtml(answer.proveedor)}${answer.conmutado ? ' (Fallback)' : ''}`
             : 'Agente';
-        return `<div class="flex justify-start"><div class="max-w-2xl break-words overflow-hidden rounded-2xl rounded-tl-none border border-slate-200 bg-white p-4 text-sm text-slate-800 shadow-sm"><div class="flex items-center justify-between border-b border-slate-100 pb-1.5 text-xs"><span class="font-semibold text-blue-600">Respuesta del agente</span><span class="text-[10px] text-slate-400">${provider}</span></div><div class="markdown-content leading-relaxed break-words">${ChatEngine.renderMarkdown(answer.contenido)}</div>${citations}<div class="flex items-center justify-between pt-1 text-[10px] text-slate-400 border-t border-slate-100 mt-2"><button type="button" onclick="ChatEngine.copiarAlPortapapeles(this, this.closest('.max-w-2xl').querySelector('.markdown-content').innerText)" class="hover:text-blue-600 flex items-center transition" title="Copiar respuesta al portapapeles"><svg class="w-3.5 h-3.5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"/></svg><span>Copiar</span></button><span>${ChatEngine.escapeHtml(answer.fecha)}</span></div></div></div>`;
+        return `<div class="flex justify-start"><div class="w-full max-w-2xl min-w-0 break-words overflow-hidden rounded-2xl rounded-tl-none border border-slate-200 bg-white p-4 text-sm text-slate-800 shadow-sm"><div class="flex items-center justify-between border-b border-slate-100 pb-1.5 text-xs"><span class="font-semibold text-blue-600">Respuesta del agente</span><span class="text-[10px] text-slate-400">${provider}</span></div><div class="markdown-content min-w-0 w-full leading-relaxed break-words">${ChatEngine.renderMarkdown(answer.contenido)}</div>${citations}<div class="flex items-center justify-between pt-1 text-[10px] text-slate-400 border-t border-slate-100 mt-2"><button type="button" onclick="ChatEngine.copiarAlPortapapeles(this, this.closest('.max-w-2xl').querySelector('.markdown-content').innerText)" class="hover:text-blue-600 flex items-center transition" title="Copiar respuesta al portapapeles"><svg class="w-3.5 h-3.5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"/></svg><span>Copiar</span></button><span>${ChatEngine.escapeHtml(answer.fecha)}</span></div></div></div>`;
     }
 
     document.querySelectorAll('#chatContainer .markdown-content').forEach(function (element) {

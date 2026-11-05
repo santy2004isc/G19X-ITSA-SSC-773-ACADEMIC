@@ -40,16 +40,19 @@ El sistema clasifica primero el mensaje: los saludos y las cortesías se respond
 
 ## Cómo probarlo de punta a punta
 
-1. Descarga el **Código Civil Federal** desde la edición vigente en [Cámara de diputados (Leyes)](https://www.diputados.gob.mx/LeyesBiblio/index.htm):
-   busca «Código Civil Federal» y abre el PDF publicado o actualizado por última vez.
-2. Crea una cuenta desde el perfil del administrador o inicia sesión con una cuenta de gestor, entra a **Base de conocimiento** y carga ese PDF.
+1. Descarga una ley federal vigente o válida desde la edición correspondiente en [Cámara de Diputados del H. Congreso de la Unión](https://www.diputados.gob.mx/LeyesBiblio/index.htm). La prueba puede hacerse con el **Código Civil Federal**, pero el sistema admite cualquier ley federal cargada en formato PDF; el nombre de la ley debe corresponder al documento que se subirá.
+2. Crea una cuenta desde el perfil del administrador o inicia sesión con una cuenta de gestor, entra a **Base de conocimiento** y carga ese PDF. La ley podrá consultarse con su nombre oficial, siglas o, cuando sea inequívoco, sin mencionarla cuando solo haya una norma relevante cargada.
 3. Configura las claves antes de iniciar la aplicación:
    - `GROQ_API_KEY`: créala en [Groq Console](https://console.groq.com/keys).
    - `GEMINI_API_KEY`: créala en [Google AI Studio](https://aistudio.google.com/app/apikey).
    Coloca ambas variables en el archivo `.env`, junto a `DEBUG`, la conexión PostgreSQL y los modelos.
-4. En el chat, prueba estas preguntas:
-   - «¿Qué regula el Código Civil Federal?» — debe citar el **Artículo 1**.
+4. En el chat, prueba preguntas generales o específicas acerca de cualquier ley cargada. Ejemplos:
+   - «¿Qué regula el Código Civil Federal?» — para esa ley, el sistema debe citar el **Artículo 1**.
+   - «¿Qué hace esta ley?» o «¿Qué regula?» — el sistema utiliza la ley cargada o la más relevante según el contexto de la consulta.
    - «¿Qué establece el artículo 2 del Código Civil Federal?» — debe citar el **Artículo 2**.
+   - «¿Qué obligaciones establece la Ley Federal del Trabajo?» — se puede usar cualquier otra ley federal cargada, siempre que se mencione el artículo o fundamento recuperado.
+
+La prueba con el Código Civil Federal es una referencia, no una restricción: el alias interno mejora las consultas que nombran esa ley, pero no impide cargar y consultar otras leyes federales. También pueden hacerse preguntas generales sobre leyes mexicanas sin escribir un artículo concreto, siempre que estén relacionadas con legislación federal y exista información normativa cargada.
 
 ### Reingestión después de una migración
 

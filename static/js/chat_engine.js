@@ -35,7 +35,7 @@
                 i += 2;
                 const filas = [];
                 while (i < lineas.length && lineas[i].includes('|') && lineas[i].trim()) filas.push(celdas(lineas[i++]));
-                salida.push(`<div class="my-3 max-w-full overflow-x-auto rounded-lg border border-slate-200"><table class="w-full border-collapse text-left text-xs"><thead class="bg-slate-100 text-slate-700"><tr>${encabezados.map(celda => `<th class="border-b border-slate-200 px-3 py-2 font-semibold">${inline(celda)}</th>`).join('')}</tr></thead><tbody>${filas.map(fila => `<tr class="odd:bg-white even:bg-slate-50">${encabezados.map((_, indice) => `<td class="border-t border-slate-100 px-3 py-2 align-top">${inline(fila[indice] || '')}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`);
+                salida.push(`<div class="my-3 w-full max-w-full overflow-x-auto overscroll-x-contain rounded-lg border border-slate-200"><table class="w-max min-w-full border-collapse text-left text-xs"><thead class="bg-slate-100 text-slate-700"><tr>${encabezados.map(celda => `<th class="border-b border-slate-200 px-3 py-2 font-semibold whitespace-nowrap">${inline(celda)}</th>`).join('')}</tr></thead><tbody>${filas.map(fila => `<tr class="odd:bg-white even:bg-slate-50">${encabezados.map((_, indice) => `<td class="border-t border-slate-100 px-3 py-2 align-top break-words">${inline(fila[indice] || '')}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`);
                 continue;
             }
             const heading = lineas[i].match(/^(#{1,3})\s+(.+)$/);
@@ -59,7 +59,7 @@
             while (i < lineas.length && lineas[i].trim() && !(i + 1 < lineas.length && lineas[i].includes('|') && esSeparadorTabla(lineas[i + 1])) && !/^(#{1,3})\s+/.test(lineas[i]) && !/^\s*(?:[-*]|\d+\.)\s+/.test(lineas[i])) {
                 parrafo.push(lineas[i++]);
             }
-            salida.push(`<p class="my-2 whitespace-pre-wrap">${inline(parrafo.join('\n')).replace(/\n/g, '<br>')}</p>`);
+            salida.push(`<p class="my-2 whitespace-pre-wrap break-words">${inline(parrafo.join('\n')).replace(/\n/g, '<br>')}</p>`);
         }
         return salida.join('');
     }

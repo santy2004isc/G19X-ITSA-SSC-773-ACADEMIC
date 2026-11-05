@@ -62,15 +62,15 @@
             {% for msg in mensajes %}
                 {% if msg.emisor == 'USUARIO' %}
                     <div class="flex justify-end">
-                        <div class="max-w-xl bg-blue-600 text-white p-3.5 rounded-2xl rounded-tr-none text-sm shadow break-words overflow-hidden">
-                            <div class="markdown-content leading-relaxed break-words">{{ msg.contenido_texto }}</div>
+                        <div class="w-full max-w-xl min-w-0 bg-blue-600 text-white p-3.5 rounded-2xl rounded-tr-none text-sm shadow break-words overflow-hidden">
+                            <div class="markdown-content min-w-0 w-full leading-relaxed break-words">{{ msg.contenido_texto }}</div>
                             <span class="block text-[10px] text-blue-200 text-right mt-1">{{ msg.fecha_envio|date:"H:i" }}</span>
                         </div>
                     </div>
                 {% else %}
                     <div class="flex justify-start">
-                        <div class="max-w-2xl bg-white border border-slate-200 text-slate-800 p-4 rounded-2xl rounded-tl-none text-sm space-y-2 shadow-sm break-words overflow-hidden">
-                            <div class="markdown-content leading-relaxed break-words">{{ msg.contenido_texto }}</div>
+                        <div class="w-full max-w-2xl min-w-0 bg-white border border-slate-200 text-slate-800 p-4 rounded-2xl rounded-tl-none text-sm space-y-2 shadow-sm break-words overflow-hidden">
+                            <div class="markdown-content min-w-0 w-full leading-relaxed break-words">{{ msg.contenido_texto }}</div>
                             
                             {% if msg.citas %}
                                 <div class="mt-2 pt-2 border-t border-slate-200 text-xs text-slate-600 space-y-1">
@@ -243,7 +243,7 @@
         const div = document.createElement('div');
         div.className = 'flex justify-end';
         div.innerHTML = `
-            <div class="max-w-xl bg-blue-600 text-white p-3.5 rounded-2xl rounded-tr-none text-sm shadow break-words overflow-hidden">
+            <div class="w-full max-w-xl min-w-0 bg-blue-600 text-white p-3.5 rounded-2xl rounded-tr-none text-sm shadow break-words overflow-hidden">
                 <p class="whitespace-pre-wrap break-words">${ChatEngine.escapeHtml(texto)}</p>
                 <span class="block text-[10px] text-blue-200 text-right mt-1">Ahora</span>
             </div>
@@ -266,8 +266,8 @@
         }
 
         div.innerHTML = `
-            <div class="max-w-2xl bg-white border border-slate-200 text-slate-800 p-4 rounded-2xl rounded-tl-none text-sm space-y-2 shadow-sm break-words overflow-hidden">
-                <div class="markdown-content leading-relaxed break-words">${ChatEngine.renderMarkdown(resp.contenido)}</div>
+            <div class="w-full max-w-2xl min-w-0 bg-white border border-slate-200 text-slate-800 p-4 rounded-2xl rounded-tl-none text-sm space-y-2 shadow-sm break-words overflow-hidden">
+                <div class="markdown-content min-w-0 w-full leading-relaxed break-words">${ChatEngine.renderMarkdown(resp.contenido)}</div>
                 ${citasHtml}
                 <div class="flex items-center justify-between pt-1 text-[10px] text-slate-400 border-t border-slate-200">
                     <div class="flex items-center space-x-2">
