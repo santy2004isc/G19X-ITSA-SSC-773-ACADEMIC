@@ -476,6 +476,19 @@ class PDFProcessorTest(TestCase):
         with self.assertRaises(ValidationError):
             procesar_pdf_en_memoria(archivo_invalido)
 
+    @patch('apps.core.services.pdf_processor.pypdf.PdfReader')
+    def test_rechaza_vigencia_imss_que_no_es_ley(self, mock_pdf_reader):
+        pagina = MagicMock()
+        pagina.extract_text.return_value = (
+            "Instituto Mexicano del Seguro Social\n"
+            "VIGENCIA DE ACUERDOS ADMINISTRATIVOS\n"
+            "Documento informativo de vigencia y trámites internos."
+        )
+        mock_pdf_reader.return_value.pages = [pagina]
+
+        with self.assertRaises(ValidationError):
+            procesar_pdf_en_memoria(io.BytesIO(b"documento vigencia IMSS"))
+
     def test_fragmentacion_cubre_texto_largo_y_respeta_limite(self):
         texto = " ".join(f"palabra{i}" for i in range(300))
 
@@ -490,7 +503,12 @@ class PDFProcessorTest(TestCase):
     def test_hash_contenido_no_cambia_por_bytes_o_metadatos_del_pdf(self, mock_pdf_reader):
         mock_page = MagicMock()
         mock_page.extract_text.return_value = (
-            "Código Civil Federal.\nArtículo 1.\nTexto vigente de la ley federal.\n"
+            "CÁMARA DE DIPUTADOS DEL H. CONGRESO DE LA UNIÓN\n"
+            "Secretaría de Servicios Parlamentarios\n"
+            "CÓDIGO CIVIL FEDERAL\nTEXTO VIGENTE\n"
+            "Artículo 1. Texto vigente de la ley federal.\n"
+            "Artículo 2. Disposición normativa federal.\n"
+            "Artículo 3. Fracción aplicable a esta ley.\n"
             + ("Disposición normativa y fracción aplicable. " * 8)
         )
         mock_pdf_reader.return_value.pages = [mock_page]

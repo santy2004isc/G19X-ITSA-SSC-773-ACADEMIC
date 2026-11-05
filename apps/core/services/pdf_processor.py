@@ -165,6 +165,7 @@ def procesar_pdf_en_memoria(file_obj, chunk_size=1000, overlap=150):
             if texto:
                 paginas_texto.append(texto)
         texto_completo = "\n".join(paginas_texto)
+        primera_pagina = paginas_texto[0] if paginas_texto else ""
     except Exception as e:
         raise ValidationError(f"Error al leer la estructura del archivo PDF: {str(e)}")
 
@@ -172,18 +173,46 @@ def procesar_pdf_en_memoria(file_obj, chunk_size=1000, overlap=150):
     if not texto_limpio:
         raise ValidationError("El archivo PDF no contiene texto legible o es un documento escaneado como imagen.")
 
-    # Rechaza PDFs legibles que no parecen contener una norma jurídica antes
-    # de crear la ley o sus fragmentos en la base de datos.
-    indicadores_legales = (
-        r"\bley(?:es)?\b", r"\bc[oó]digo\b", r"\bconstituci[oó]n\b",
-        r"\breglamento\b", r"\bdecreto\b", r"\bart[ií]culo\b",
-        r"\bDiario Oficial\b", r"\bfracci[oó]n\b",
+    primera_pagina_limpia = _limpiar_texto(primera_pagina)
+    texto_normativo = texto_limpio.lower()
+    primera_pagina_normativa = primera_pagina_limpia.lower()
+
+    tiene_encabezado_do_federal = bool(re.search(
+        r"c[aá]mara de diputados|secretar[ií]a de servicios parlamentarios|"
+        r"h\.?\s*congreso de la uni[oó]n|diario oficial de la federaci[oó]n",
+        primera_pagina_normativa,
+        re.IGNORECASE,
+    ))
+    tiene_titulo_legal = bool(re.search(
+        r"\b(?:ley|c[oó]digo|constituci[oó]n pol[ií]tica|reglamento|estatuto|decreto)\b",
+        primera_pagina_normativa,
+        re.IGNORECASE,
+    ))
+    tiene_promulgacion = bool(re.search(
+        r"(?:presidente constitucional de los estados unidos mexicanos|"
+        r"a sus habitantes, sabed|por tanto, mando se imprima|"
+        r"cámara de diputados.*decreto|artículos transitorios)",
+        primera_pagina_normativa,
+        re.IGNORECASE | re.DOTALL,
+    ))
+    encabezados_articulo = len(re.findall(
+        r"(?m)^[ \t]*(?:art[ií]culo\s+\S+|\d+[oº°]?\s+(?:bis|ter|quáter)?\.?-)",
+        texto_normativo,
+        re.IGNORECASE,
+    ))
+    tiene_cuerpo_normativo = encabezados_articulo >= 3 or bool(re.search(
+        r"(?mi)^[ \t]*(?:art[ií]culo\s+(?:primero|único|1)\b|"
+        r"art[ií]culo\s+(?:[0-9]+|bis|ter))",
+        texto_normativo,
+    ))
+
+    es_normativo = (
+        len(texto_limpio) >= 250
+        and tiene_titulo_legal
+        and tiene_encabezado_do_federal
+        and (tiene_promulgacion or tiene_cuerpo_normativo)
     )
-    coincidencias_legales = sum(
-        bool(re.search(patron, texto_limpio, re.IGNORECASE))
-        for patron in indicadores_legales
-    )
-    if len(texto_limpio) < 250 or coincidencias_legales < 2:
+    if not es_normativo:
         raise ValidationError(
             "El PDF no parece corresponder a una ley o documento normativo. "
             "Verifica que sea una ley, código, reglamento o decreto legible."
