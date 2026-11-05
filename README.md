@@ -47,7 +47,6 @@ El sistema clasifica primero el mensaje: los saludos y las cortesías se respond
    - `GEMINI_API_KEY`: créala en [Google AI Studio](https://aistudio.google.com/app/apikey).
    Coloca ambas variables en el archivo `.env`, junto a `DEBUG`, la conexión PostgreSQL y los modelos.
 4. En el chat, prueba preguntas generales o específicas acerca de cualquier ley cargada. Ejemplos:
-   - «¿Qué regula el Código Civil Federal?» — para esa ley, el sistema debe citar el **Artículo 1**.
    - «¿Qué hace esta ley?» o «¿Qué regula?» — el sistema utiliza la ley cargada o la más relevante según el contexto de la consulta.
    - «¿Qué establece el artículo 2 del Código Civil Federal?» — debe citar el **Artículo 2**.
    - «¿Qué obligaciones establece la Ley Federal del Trabajo?» — se puede usar cualquier otra ley federal cargada, siempre que se mencione el artículo o fundamento recuperado.
