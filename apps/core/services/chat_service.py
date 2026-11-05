@@ -266,6 +266,23 @@ def preparar_contexto_conversacion(mensajes):
     return resumen, recientes
 
 
+def _es_error_temporal_gemini(error):
+    texto_error = str(error).lower()
+    return any(
+        indicador in texto_error
+        for indicador in (
+            '503',
+            'unavailable',
+            'high demand',
+            'rate limit',
+            '429',
+            'resource exhausted',
+            'overloaded',
+            'timeout',
+        )
+    )
+
+
 def procesar_mensaje_chat(conversacion, pregunta, usuario, consumir_cuota=False):
     """Genera una respuesta fuera de la transacción y persiste el intercambio de forma atómica."""
     tipo_mensaje = clasificar_mensaje(pregunta)
@@ -416,7 +433,7 @@ def generar_respuesta_ia_con_fallback(pregunta_usuario, contexto_normativo, usua
         if resumen_historial or mensajes_recientes:
             contenido_gemini = user_prompt
 
-        for intento in range(2):
+        for intento in range(3):
             try:
                 gemini_client = get_gemini_client()
                 response = gemini_client.models.generate_content(
@@ -440,8 +457,8 @@ def generar_respuesta_ia_con_fallback(pregunta_usuario, contexto_normativo, usua
                 return response.text, proveedor_usado, conmutado
 
             except Exception as e_gemini:
-                if intento == 0:
-                    time.sleep(1)
+                if intento < 2 and _es_error_temporal_gemini(e_gemini):
+                    time.sleep(2 ** intento)
                     continue
                 
                 # Ambos fallaron: auditoría de fallo no exitoso

@@ -752,6 +752,35 @@ class ChatServiceFallbackTest(TestCase):
         self.assertEqual(registro.conmutado_a, Mensaje.ProveedorIA.GEMINI)
         self.assertTrue(registro.exitoso)
 
+    @patch('apps.core.services.chat_service.time.sleep')
+    @patch('apps.core.services.chat_service.get_gemini_client')
+    @patch('apps.core.services.chat_service.get_groq_client')
+    def test_gemini_reintenta_error_503_temporal(self, mock_get_groq, mock_get_gemini, mock_sleep):
+        mock_groq = MagicMock()
+        mock_groq.chat.completions.create.side_effect = Exception("Groq Timeout")
+        mock_get_groq.return_value = mock_groq
+
+        mock_gemini = MagicMock()
+        mock_response = MagicMock()
+        mock_response.text = "Respuesta recuperada tras el reintento."
+        mock_gemini.models.generate_content.side_effect = [
+            Exception("503 UNAVAILABLE: high demand"),
+            mock_response,
+        ]
+        mock_get_gemini.return_value = mock_gemini
+
+        respuesta, proveedor, conmutado = generar_respuesta_ia_con_fallback(
+            pregunta_usuario="¿Qué dice el artículo 1?",
+            contexto_normativo="Artículo 1. Disposición federal.",
+            usuario=self.usuario,
+        )
+
+        self.assertEqual(respuesta, "Respuesta recuperada tras el reintento.")
+        self.assertEqual(proveedor, Mensaje.ProveedorIA.GEMINI)
+        self.assertTrue(conmutado)
+        self.assertEqual(mock_gemini.models.generate_content.call_count, 2)
+        mock_sleep.assert_called_once_with(1)
+
     @patch('apps.core.services.chat_service.get_gemini_client')
     @patch('apps.core.services.chat_service.get_groq_client')
     def test_ambos_proveedores_fallan_notificacion_amigable(self, mock_get_groq, mock_get_gemini):
