@@ -40,18 +40,53 @@ El sistema clasifica primero el mensaje: los saludos y las cortesías se respond
 
 ## Cómo probarlo de punta a punta
 
-1. Descarga una ley federal vigente o válida desde la edición correspondiente en [Cámara de Diputados del H. Congreso de la Unión](https://www.diputados.gob.mx/LeyesBiblio/index.htm). La prueba puede hacerse con el **Código Civil Federal**, pero el sistema admite cualquier ley federal cargada en formato PDF; el nombre de la ley debe corresponder al documento que se subirá.
-2. Crea una cuenta desde el perfil del administrador o inicia sesión con una cuenta de gestor, entra a **Base de conocimiento** y carga ese PDF. La ley podrá consultarse con su nombre oficial, siglas o, cuando sea inequívoco, sin mencionarla cuando solo haya una norma relevante cargada.
-3. Configura las claves antes de iniciar la aplicación:
+1. Descarga una ley federal vigente o válida desde la edición correspondiente en [Cámara de Diputados del H. Congreso de la Unión](https://www.diputados.gob.mx/LeyesBiblio/index.htm). Para esta prueba se recomienda el **Código Civil Federal** en formato PDF.
+2. Desde la raíz del proyecto, crea el archivo de entorno y completa las claves:
+
+   ```bash
+   cp .env.example .env
+   ```
+
+   Define al menos:
+   - `SECRET_KEY`, `DEBUG`, `ALLOWED_HOSTS` y `CSRF_TRUSTED_ORIGINS`.
+   - Las variables PostgreSQL incluidas en la plantilla.
    - `GROQ_API_KEY`: créala en [Groq Console](https://console.groq.com/keys).
    - `GEMINI_API_KEY`: créala en [Google AI Studio](https://aistudio.google.com/app/apikey).
-   Coloca ambas variables en el archivo `.env`, junto a `DEBUG`, la conexión PostgreSQL y los modelos.
-4. En el chat, prueba preguntas generales o específicas acerca de cualquier ley cargada. Ejemplos:
-   - «¿Qué hace esta ley?» o «¿Qué regula?» — el sistema utiliza la ley cargada o la más relevante según el contexto de la consulta.
-   - «¿Qué establece el artículo 2 del Código Civil Federal?» — debe citar el **Artículo 2**.
-   - «¿Qué obligaciones establece la Ley Federal del Trabajo?» — se puede usar cualquier otra ley federal cargada, siempre que se mencione el artículo o fundamento recuperado.
+   - `GROQ_MODEL` y `GEMINI_MODEL`; puedes conservar los valores de `.env.example`.
 
-La prueba con el Código Civil Federal es una referencia, no una restricción: el alias interno mejora las consultas que nombran esa ley, pero no impide cargar y consultar otras leyes federales. También pueden hacerse preguntas generales sobre leyes mexicanas sin escribir un artículo concreto, siempre que estén relacionadas con legislación federal y exista información normativa cargada.
+3. Construye e inicia los contenedores:
+
+   ```bash
+   docker-compose up --build -d
+   ```
+
+4. Aplica las migraciones:
+
+   ```bash
+   docker-compose exec web python manage.py migrate
+   ```
+
+5. Crea el superusuario administrador:
+
+   ```bash
+   docker-compose exec web python manage.py createsuperuser
+   ```
+
+   La consola solicitará correo electrónico, nombre y apellido, además de la contraseña. Usa los datos indicados al iniciar sesión.
+
+6. Abre **[http://localhost:8000](http://localhost:8000)** e inicia sesión como administrador.
+7. En el panel del administrador, crea una cuenta y asigna el rol **Gestor**.
+8. Cierra la sesión de administrador, inicia sesión como gestor y entra en **Base de conocimiento**. Carga el PDF descargado. Asegúrate de que el nombre oficial coincida con el documento.
+   - La primera carga puede tardar porque el contenedor descarga el modelo de embeddings `paraphrase-multilingual-mpnet-base-v2`. Las cargas siguientes reutilizan el modelo una vez descargado.
+9. Cierra la sesión del gestor, entra al sistema con una cuenta de usuario registrado (puedes crearla desde el registro público o desde el administrador) y abre el chat.
+10. Comprueba las respuestas con preguntas que indiquen el artículo esperado:
+
+   - «¿Qué establece el artículo 2 del Código Civil Federal?» — debe citar el **Artículo 2**.
+   - «¿Qué establece el artículo 123 de la Ley Federal del Trabajo?» — si cargaste esa ley, debe citar el **Artículo 123**.
+   - «¿Qué hace esta ley?» — puede responder con los fundamentos recuperados de la ley cargada.
+   - «¿Qué obligaciones establece el Código Civil Federal?» — puede citar los artículos encontrados como fundamento.
+
+La aplicación admite cualquier ley federal cargada en formato PDF. El nombre oficial, las siglas o el contexto de una sola ley cargada permiten localizarla; no debe asumirse que una norma concreta está cargada hasta haberla añadido como gestor.
 
 ### Reingestión después de una migración
 

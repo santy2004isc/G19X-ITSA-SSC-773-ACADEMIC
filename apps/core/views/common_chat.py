@@ -86,7 +86,6 @@ def ejecutar_envio_mensaje(request, es_gestor=False):
             conversacion,
             pregunta,
             usuario,
-            consumir_cuota=False,
         )
 
         if es_gestor:

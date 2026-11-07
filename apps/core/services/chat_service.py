@@ -11,8 +11,7 @@ from django.contrib.postgres.search import SearchVector, SearchQuery, SearchRank
 from django.core.cache import cache
 from django.db import transaction
 from pgvector.django import CosineDistance
-from django.db.models import F
-from ..models import FragmentoNormativo, LeyFederal, Mensaje, RegistroFalloAPI, Usuario
+from ..models import FragmentoNormativo, LeyFederal, Mensaje, RegistroFalloAPI
 from .pdf_processor import generar_vector_embedding  
 
 logger = logging.getLogger(__name__)
@@ -283,7 +282,7 @@ def _es_error_temporal_gemini(error):
     )
 
 
-def procesar_mensaje_chat(conversacion, pregunta, usuario, consumir_cuota=False):
+def procesar_mensaje_chat(conversacion, pregunta, usuario):
     """Genera una respuesta fuera de la transacción y persiste el intercambio de forma atómica."""
     tipo_mensaje = clasificar_mensaje(pregunta)
     if tipo_mensaje in ('saludo', 'cortesia'):
@@ -329,11 +328,6 @@ def procesar_mensaje_chat(conversacion, pregunta, usuario, consumir_cuota=False)
             conmutado_fallback=conmutado,
             citas=citas,
         )
-        # Actualización atómica en SQL para prevenir condiciones de carrera concurrentes
-        if consumir_cuota and tipo_mensaje == 'juridico':
-            Usuario.objects.filter(pk=usuario.pk).update(mensajes_usados_hoy=F('mensajes_usados_hoy') + 1)
-            usuario.refresh_from_db(fields=['mensajes_usados_hoy'])
-
     return mensaje_usuario, mensaje_sistema, citas
 
 
@@ -358,7 +352,7 @@ def generar_respuesta_ia_con_fallback(pregunta_usuario, contexto_normativo, usua
         "Tu objetivo es responder a la pregunta del usuario utilizando EXCLUSIVAMENTE el contexto normativo proporcionado.\n\n"
         "REGLA DE FILTRO / GUARDRAIL DE CONTEXTO:\n"
         "Puedes responder consultas generales o específicas sobre cualquier Ley Federal, código, reglamento o norma federal mexicana cargada, "
-        "aunque la pregunta nombre una norma distinta al Código Civil Federal. Si la consulta es ajena al marco jurídico federal mexicano "
+        "cargada, independientemente de cuál sea su nombre. Si la consulta es ajena al marco jurídico federal mexicano "
         "o el contexto proporcionado no permite fundamentarla, debes rechazarla respondiendo "
         "ÚNICAMENTE con el siguiente mensaje estandarizado:\n"
         "\"Lo siento, únicamente puedo responder consultas relacionadas con el marco legal mexicano y fundamentadas en el contexto normativo disponible. Por favor, formula una pregunta dentro de este ámbito.\"\n\n"
