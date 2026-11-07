@@ -6,7 +6,7 @@
 [![Django](https://img.shields.io/badge/Django-5.x-green.svg)](https://www.djangoproject.com/)
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16%20%2B%20pgvector-blue.svg)](https://github.com/pgvector/pgvector)
 [![TailwindCSS](https://img.shields.io/badge/Tailwind-CSS%20Standalone-38bdf8.svg)](https://tailwindcss.com/)
-[![Tests](https://img.shields.io/badge/Tests-43%20casos-informational.svg)]()
+[![Tests](https://img.shields.io/badge/Tests-44%20casos-informational.svg)]()
 [![Docker](https://img.shields.io/badge/Docker-Ready-2496ed.svg)](https://www.docker.com/)
 
 ---
@@ -102,7 +102,7 @@ Los fragmentos creados antes de una migración que agregó el campo `articulo` p
 │   │   ├── decorators.py           # @roles_requeridos para control de acceso RBAC
 │   │   ├── middleware.py           # AutenticacionRequeridaMiddleware (Zero-Trust)
 │   │   ├── models.py               # Usuario, LeyFederal, FragmentoNormativo, Conversacion, Mensaje, RegistroFalloAPI
-│   │   ├── tests.py                # Suite de 43 casos de prueba registrados
+│   │   ├── tests.py                # Suite de 44 casos de prueba registrados
 │   │   ├── urls.py
 │   │   └── __init__.py
 │   └── __init__.py
@@ -167,6 +167,9 @@ DEBUG=True
 ALLOWED_HOSTS=localhost,127.0.0.1,0.0.0.0
 CSRF_TRUSTED_ORIGINS=http://127.0.0.1:8000,http://0.0.0.0:8000
 
+# Tiempo máximo de inactividad de una sesión, expresado en minutos.
+SESSION_IDLE_TIMEOUT_SECONDS=30 
+
 # Base de Datos PostgreSQL con pgvector
 POSTGRES_DB=leyes_db
 POSTGRES_USER=postgres
@@ -209,7 +212,7 @@ Abre tu navegador e ingresa a: **[http://localhost:8000](http://localhost:8000)*
 
 ## Ejecución de Pruebas Automatizadas
 
-El proyecto incluye **43 casos de prueba registrados** para cuotas, middleware, permisos por rol, procesamiento y deduplicación de PDF, encabezados transitorios, historial conversacional, fallback de proveedores y búsqueda híbrida:
+El proyecto incluye **44 casos de prueba registrados** para cuotas, middleware, permisos por rol, procesamiento y deduplicación de PDF, encabezados transitorios, historial conversacional, fallback de proveedores y búsqueda híbrida:
 
 ```bash
 docker-compose exec web python manage.py test apps.core

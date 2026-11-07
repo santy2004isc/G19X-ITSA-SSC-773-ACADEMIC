@@ -1,6 +1,9 @@
 from django.shortcuts import redirect
 from django.urls import resolve
 from django.conf import settings
+from django.contrib import messages
+from django.contrib.auth import logout
+import time
 
 class AutenticacionRequeridaMiddleware:
     """
@@ -25,6 +28,21 @@ class AutenticacionRequeridaMiddleware:
 
     def __call__(self, request):
         if request.user.is_authenticated:
+            ultima_actividad = request.session.get('ultima_actividad')
+            ahora = time.time()
+
+            if ultima_actividad is not None:
+                try:
+                    sesion_expirada = ahora - float(ultima_actividad) >= settings.SESSION_IDLE_TIMEOUT_SECONDS
+                except (TypeError, ValueError):
+                    sesion_expirada = True
+
+                if sesion_expirada:
+                    logout(request)
+                    messages.warning(request, "Tu sesión expiró por inactividad. Inicia sesión nuevamente.")
+                    return redirect(settings.LOGIN_URL)
+
+            request.session['ultima_actividad'] = ahora
             return self.get_response(request)
 
         # Permitir rutas estáticas o favicon
@@ -37,7 +55,10 @@ class AutenticacionRequeridaMiddleware:
         try:
             match = resolve(path)
             if match.url_name in self.RUTAS_EXENTAS:
-                return self.get_response(request)
+                response = self.get_response(request)
+                if request.user.is_authenticated and 'ultima_actividad' not in request.session:
+                    request.session['ultima_actividad'] = time.time()
+                return response
         except Exception:
             pass
 

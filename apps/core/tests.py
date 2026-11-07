@@ -1,8 +1,9 @@
 import io
 import json
 from datetime import timedelta
+import time
 from unittest.mock import patch, MagicMock
-from django.test import TestCase, Client
+from django.test import TestCase, Client, override_settings
 from django.urls import reverse
 from django.utils import timezone
 from django.core.exceptions import ValidationError
@@ -136,6 +137,19 @@ class AutenticacionMiddlewareTest(TestCase):
         self.client.force_login(self.user)
         response = self.client.get(reverse('chat_interfaz'))
         self.assertEqual(response.status_code, 200)
+
+    def test_sesion_expirada_por_inactividad_redirige_a_login(self):
+        self.client.force_login(self.user)
+        sesion = self.client.session
+        sesion['ultima_actividad'] = time.time() - 31 * 60
+        sesion.save()
+
+        with override_settings(SESSION_IDLE_TIMEOUT_SECONDS=30 * 60):
+            response = self.client.get(reverse('chat_interfaz'))
+
+        self.assertEqual(response.status_code, 302)
+        self.assertIn(reverse('login'), response.url)
+        self.assertNotIn('_auth_user_id', self.client.session)
 
 
 class ControlDeRolesTest(TestCase):

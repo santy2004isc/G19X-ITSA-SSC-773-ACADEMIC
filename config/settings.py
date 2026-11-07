@@ -13,6 +13,7 @@ import os
 from pathlib import Path
 from decouple import config
 from dotenv import load_dotenv
+from django.core.exceptions import ImproperlyConfigured
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -46,6 +47,31 @@ INSTALLED_APPS = [
 AUTH_USER_MODEL = 'core.Usuario'
 LOGIN_URL = 'login'
 LOGOUT_REDIRECT_URL = 'login'
+
+# Duración máxima de una sesión por falta de actividad, en minutos.
+def _entero_minutos_sesion(valor, nombre):
+    valor = str(valor).split('//', 1)[0].split('#', 1)[0].strip()
+    try:
+        minutos = int(valor)
+    except (TypeError, ValueError):
+        raise ImproperlyConfigured(
+            f"{nombre} debe ser un número entero positivo de minutos."
+        )
+    if minutos <= 0:
+        raise ImproperlyConfigured(
+            f"{nombre} debe ser mayor que cero."
+        )
+    return minutos
+
+
+SESSION_IDLE_TIMEOUT_MINUTES = _entero_minutos_sesion(
+    config('SESSION_IDLE_TIMEOUT_MINUTES', default='30'),
+    'SESSION_IDLE_TIMEOUT_MINUTES',
+)
+SESSION_IDLE_TIMEOUT_SECONDS = SESSION_IDLE_TIMEOUT_MINUTES * 60
+SESSION_COOKIE_AGE = SESSION_IDLE_TIMEOUT_SECONDS
+SESSION_SAVE_EVERY_REQUEST = True
+SESSION_EXPIRE_AT_BROWSER_CLOSE = True
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
