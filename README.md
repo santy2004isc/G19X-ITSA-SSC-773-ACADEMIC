@@ -79,12 +79,15 @@ El sistema clasifica primero el mensaje: los saludos y las cortesías se respond
 8. Cierra la sesión de administrador, inicia sesión como gestor y entra en **Base de conocimiento**. Carga el PDF descargado. Asegúrate de que el nombre oficial coincida con el documento.
    - La primera carga puede tardar porque el contenedor descarga el modelo de embeddings `paraphrase-multilingual-mpnet-base-v2`. Las cargas siguientes reutilizan el modelo una vez descargado.
 9. Cierra la sesión del gestor, entra al sistema con una cuenta de usuario registrado (puedes crearla desde el registro público o desde el administrador) y abre el chat.
-10. Comprueba las respuestas con preguntas que indiquen el artículo esperado:
+10. Comprueba las respuestas con preguntas y casos prácticos:
 
-   - «¿Qué establece el artículo 2 del Código Civil Federal?» — debe citar el **Artículo 2**.
-   - «¿Qué establece el artículo 123 de la Ley Federal del Trabajo?» — si cargaste esa ley, debe citar el **Artículo 123**.
-   - «¿Qué hace esta ley?» — puede responder con los fundamentos recuperados de la ley cargada.
-   - «¿Qué obligaciones establece el Código Civil Federal?» — puede citar los artículos encontrados como fundamento.
+   - «¿Cuál es el objetivo principal del Código Civil Federal?»
+   - «¿Qué obligaciones tienen las empresas según la Ley Federal del Trabajo?»
+   - «¿Qué sucede si un trabajador debe renunciar y necesita conocer sus derechos?»
+   - «¿Qué hacer si esta violando los derechos como comerciante?»
+   - «¿Qué debe hacer una empresa si necesita modificar las condiciones laborales de sus empleados?»
+
+   Antes de probar una pregunta, asegúrate de haber cargado en **Base de conocimiento** la ley mencionada. El agente solamente puede consultar la documentación normativa que esté disponible en el sistema. Si preguntas sobre una ley que no se ha cargado, responderá que la consulta está fuera de su contexto o solicitará que revises las normas disponibles.
 
 La aplicación admite cualquier ley federal cargada en formato PDF. El nombre oficial, las siglas o el contexto de una sola ley cargada permiten localizarla; no debe asumirse que una norma concreta está cargada hasta haberla añadido como gestor.
 
