@@ -62,6 +62,8 @@ class CrearUsuarioAdminForm(forms.ModelForm):
 
     def save(self, commit=True):
         user = super().save(commit=False)
+        if user.rol != Usuario.Rol.REGISTRADO:
+            user.cuota_diaria_mensajes = 50
         user.set_password(self.cleaned_data["password"])
         if commit:
             user.save()
@@ -119,6 +121,8 @@ class EditarUsuarioAdminForm(forms.ModelForm):
 
     def save(self, commit=True):
         user = super().save(commit=False)
+        if user.rol != Usuario.Rol.REGISTRADO:
+            user.cuota_diaria_mensajes = 50
         nueva = self.cleaned_data.get("password_nueva")
         if nueva:
             user.set_password(nueva)

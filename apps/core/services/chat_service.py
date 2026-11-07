@@ -291,8 +291,6 @@ def procesar_mensaje_chat(conversacion, pregunta, usuario):
         conmutado = False
         citas = []
     else:
-        contexto, citas = buscar_contexto_normativo(pregunta)
-
         # Contexto conversacional: resume lo anterior y conserva completos los últimos intercambios.
         historial_previo = []
         if not conversacion._state.adding and conversacion.pk:
@@ -302,6 +300,17 @@ def procesar_mensaje_chat(conversacion, pregunta, usuario):
                 {'emisor': m.emisor, 'texto': m.contenido_texto}
                 for m in mensajes_qs
             ]
+
+        consulta_recuperacion = pregunta
+        usuarios_previos = [
+            mensaje['texto'].strip()
+            for mensaje in historial_previo[-4:]
+            if mensaje['emisor'] in ('USUARIO', Mensaje.Emisor.USUARIO) and mensaje['texto'].strip()
+        ]
+        if usuarios_previos and clasificar_mensaje(pregunta) == 'juridico':
+            consulta_recuperacion = " ".join([*usuarios_previos[-2:], pregunta])
+
+        contexto, citas = buscar_contexto_normativo(consulta_recuperacion)
 
         respuesta_texto, proveedor_usado, conmutado = generar_respuesta_ia_con_fallback(
             pregunta_usuario=pregunta,
@@ -338,9 +347,10 @@ def generar_respuesta_ia_con_fallback(pregunta_usuario, contexto_normativo, usua
     Si ambos proveedores fallan por saturación/límite de cuota, devuelve
     una notificación amigable sin romper la sesión del usuario.
     """
-    if not contexto_normativo.strip():
+    if not contexto_normativo.strip() and not historial_mensajes:
         return (
-            "No se encontró información suficiente en las Leyes Federales vigentes para responder a su consulta.",
+            "No se encontró información suficiente en las leyes cargadas para responder a su consulta. "
+            "Indique la ley que desea consultar o precise el artículo o el tema normativo sobre el que pregunta.",
             Mensaje.ProveedorIA.GROQ,
             False
         )
@@ -352,7 +362,9 @@ def generar_respuesta_ia_con_fallback(pregunta_usuario, contexto_normativo, usua
         "Tu objetivo es responder a la pregunta del usuario utilizando EXCLUSIVAMENTE el contexto normativo proporcionado.\n\n"
         "REGLA DE FILTRO / GUARDRAIL DE CONTEXTO:\n"
         "Puedes responder consultas generales o específicas sobre cualquier Ley Federal, código, reglamento o norma federal mexicana cargada, "
-        "cargada, independientemente de cuál sea su nombre. Si la consulta es ajena al marco jurídico federal mexicano "
+        "independientemente de cuál sea su nombre. Si la conversación anterior identifica una ley o un artículo, puedes usarla para resolver preguntas de seguimiento breves. "
+        "Si no existe contexto normativo recuperado y tampoco hay historial que permita identificar la ley, solicita que el usuario indique la ley o el tema. "
+        "Si la consulta es ajena al marco jurídico mexicano, las leyes federales mexicanas "
         "o el contexto proporcionado no permite fundamentarla, debes rechazarla respondiendo "
         "ÚNICAMENTE con el siguiente mensaje estandarizado:\n"
         "\"Lo siento, únicamente puedo responder consultas relacionadas con el marco legal mexicano y fundamentadas en el contexto normativo disponible. Por favor, formula una pregunta dentro de este ámbito.\"\n\n"
