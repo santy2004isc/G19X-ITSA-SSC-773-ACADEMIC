@@ -492,6 +492,60 @@ class ControlDeRolesTest(TestCase):
             self.assertContains(respuesta, 'Filas por página')
             self.assertContains(respuesta, 'page_size=10')
 
+    def test_ordenamiento_en_los_tres_listados_se_aplica_antes_de_paginar(self):
+        Usuario.objects.bulk_create([
+            Usuario(
+                correo_electronico=f'orden-usuario-{indice:02}@test.com',
+                nombre='Usuario ordenado',
+                apellido=str(indice),
+            )
+            for indice in range(26)
+        ])
+        LeyFederal.objects.bulk_create([
+            LeyFederal(
+                nombre=f'Orden ley {indice:02}',
+                fecha_publicacion=timezone.now().date(),
+            )
+            for indice in range(26)
+        ])
+        RegistroFalloAPI.objects.bulk_create([
+            RegistroFalloAPI(
+                proveedor_solicitado=RegistroFalloAPI.ProveedorIA.GROQ,
+                codigo_error=f'orden-{indice:02}',
+            )
+            for indice in range(26)
+        ])
+        for indice in range(26):
+            RegistroFalloAPI.objects.filter(codigo_error=f'orden-{indice:02}').update(
+                fecha_evento=timezone.now() - timedelta(days=indice)
+            )
+
+        self.client.force_login(self.usuario_admin)
+        usuarios = self.client.get(
+            reverse('admin_dashboard'),
+            {'page': 2, 'page_size': 10, 'ordering': 'correo'},
+        )
+        self.client.force_login(self.usuario_gestor)
+        leyes = self.client.get(
+            reverse('gestor_dashboard'),
+            {'page': 2, 'page_size': 10, 'ordering': '-nombre'},
+        )
+        self.client.force_login(self.usuario_admin)
+        fallos = self.client.get(
+            reverse('admin_fallos_api'),
+            {'page': 2, 'page_size': 10, 'ordering': '-fecha'},
+        )
+
+        self.assertEqual(
+            usuarios.context['usuarios'][0].correo_electronico,
+            'orden-usuario-09@test.com',
+        )
+        self.assertEqual(usuarios.context['ordering'], 'correo')
+        self.assertEqual(leyes.context['leyes'][0].nombre, 'Orden ley 15')
+        self.assertEqual(leyes.context['ordering'], '-nombre')
+        self.assertEqual(fallos.context['fallos'][0].codigo_error, 'orden-10')
+        self.assertEqual(fallos.context['ordering'], '-fecha')
+
     def test_busqueda_de_usuarios_y_leyes_filtra_todos_los_registros_antes_de_paginar(self):
         self.client.force_login(self.usuario_admin)
         usuarios = [
@@ -527,9 +581,11 @@ class ControlDeRolesTest(TestCase):
         self.assertEqual(respuesta_usuarios.context['page_obj'].paginator.count, 1)
         self.assertEqual(respuesta_usuarios.context['usuarios'][0].nombre, 'Coincidencia remota')
         self.assertContains(respuesta_usuarios, 'value="Coincidencia remota"')
+        self.assertContains(respuesta_usuarios, 'data-live-search')
         self.assertEqual(respuesta_leyes.context['page_obj'].paginator.count, 1)
         self.assertEqual(respuesta_leyes.context['leyes'][0].nombre, 'Ley de prueba remota')
         self.assertContains(respuesta_leyes, 'value="LPR"')
+        self.assertContains(respuesta_leyes, 'data-live-search')
 
     def test_dashboard_muestra_mensaje_visible_cuando_falla_la_indexacion(self):
         self.client.force_login(self.usuario_gestor)

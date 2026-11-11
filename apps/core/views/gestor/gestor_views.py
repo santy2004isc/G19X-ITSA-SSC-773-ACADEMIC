@@ -20,7 +20,7 @@ from ...services.pdf_processor import (
     extraer_metadatos_primera_pagina,
 )
 from ...tasks import procesar_pdf_ley
-from ..pagination import PAGE_SIZE_OPTIONS, get_page_size
+from ..pagination import PAGE_SIZE_OPTIONS, apply_table_ordering, get_page_size
 
 logger = logging.getLogger(__name__)
 
@@ -77,10 +77,24 @@ def gestor_dashboard_view(request):
     """
     Dashboard paginado del Gestor con búsqueda por nombre oficial o siglas.
     """
-    leyes = LeyFederal.objects.select_related('usuario', 'usuario_modificacion').order_by('-fecha_creacion', 'pk')
+    leyes = LeyFederal.objects.select_related('usuario', 'usuario_modificacion')
     busqueda = request.GET.get('q', '').strip()
     if busqueda:
         leyes = leyes.filter(Q(nombre__icontains=busqueda) | Q(siglas__icontains=busqueda))
+    leyes, ordering = apply_table_ordering(
+        leyes,
+        request,
+        {
+            'nombre': ('nombre',),
+            'siglas': ('siglas',),
+            'publicacion': ('fecha_publicacion',),
+            'reforma': ('fecha_ultima_reforma',),
+            'usuario': ('usuario__nombre', 'usuario__apellido'),
+            'modificacion': ('fecha_modificacion', 'usuario_modificacion__nombre'),
+            'estado': ('estado',),
+        },
+        ('-fecha_creacion', 'pk'),
+    )
     page_size = get_page_size(request)
     page_obj = Paginator(leyes, page_size).get_page(request.GET.get('page'))
     total_fragmentos = FragmentoNormativo.objects.count()
@@ -93,6 +107,7 @@ def gestor_dashboard_view(request):
         'page_size': page_size,
         'page_size_options': PAGE_SIZE_OPTIONS,
         'busqueda': busqueda,
+        'ordering': ordering,
     }
     return render(request, 'gestor/dashboard.html', context)
 

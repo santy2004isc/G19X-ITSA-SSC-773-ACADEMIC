@@ -11,7 +11,7 @@ Plataforma web Django para consultar leyes federales mexicanas mediante búsqued
 - Embeddings locales de 768 dimensiones con `sentence-transformers`; recuperación híbrida mediante `pgvector` y búsqueda de texto completo en español de PostgreSQL.
 - Deduplicación por hash del archivo y del texto, fragmentación con identificación de artículos y disposiciones transitorias.
 - Chat con historial, clasificación de saludos/cortesías, cuota diaria para usuarios registrados, fallback entre Groq y Gemini y respuestas transmitidas en tiempo real mediante SSE.
-- Listados administrativos con una sola paginación del servidor (10, 20, 25, 30, 40 o 50 filas por página), controles de método/CSRF en acciones que cambian datos y soporte de tema claro/oscuro.
+- Listados administrativos con ordenamiento en el servidor y una sola paginación (10, 20, 25, 30, 40 o 50 filas por página), búsqueda en tiempo real de usuarios/leyes, controles de método/CSRF en acciones que cambian datos y soporte de tema claro/oscuro.
 
 ## Tecnologías
 
@@ -85,6 +85,11 @@ Las variables se leen desde el entorno o desde `.env` con `python-decouple`. Var
 | `GROQ_API_KEY`, `GEMINI_API_KEY` | Credenciales opcionales de los proveedores de IA. |
 | `GROQ_MODEL`, `GEMINI_MODEL` | Modelos configurados para Groq y Gemini. |
 
+Para obtener las credenciales y consultar la documentación oficial:
+
+- **Groq:** crea una clave en [Groq Console](https://console.groq.com/keys) y consulta la [documentación de la API](https://console.groq.com/docs/quickstart).
+- **Google Gemini:** crea una clave en [Google AI Studio](https://aistudio.google.com/app/apikey) y consulta la [documentación de la API](https://ai.google.dev/gemini-api/docs).
+
 En producción, configura `DEBUG=False`, una clave secreta fuerte, hosts/orígenes correctos y HTTPS. La configuración activa cookies seguras y HSTS cuando `DEBUG` está desactivado.
 
 ## Administración de Django
@@ -99,7 +104,7 @@ Los paneles propios están limitados por rol:
 
 ## Pruebas
 
-La suite actual tiene 66 pruebas en `apps/core/tests.py`. Cubre el registro de modelos y las vistas/hash de contraseñas en Django Admin, autenticación, normalización de correos, redirecciones seguras, CSRF y permisos, paginación y búsqueda de usuarios/leyes en el servidor, carga y reproceso asíncronos con seguimiento de estados de indexación, extracción/fragmentación de PDF, chat con streaming SSE, cuotas, fallback y búsqueda híbrida.
+La suite actual tiene 67 pruebas en `apps/core/tests.py`. Cubre el registro de modelos y las vistas/hash de contraseñas en Django Admin, autenticación, normalización de correos, redirecciones seguras, CSRF y permisos, ordenamiento, paginación y búsqueda en tiempo real de usuarios/leyes en el servidor, carga y reproceso asíncronos con seguimiento de estados de indexación, extracción/fragmentación de PDF, chat con streaming SSE, cuotas, fallback y búsqueda híbrida.
 
 Con los servicios de Docker iniciados, ejecuta:
 
@@ -133,7 +138,7 @@ Este recorrido comprueba el flujo principal desde el inicio de los servicios has
 
 2. **Crea un usuario gestor.** Inicia sesión con el superusuario en <http://localhost:8000/>. En el panel de administración de la aplicación, abre **Crear Usuario**, registra una cuenta y asígnale el rol **Gestor de la Base de Conocimiento**.
 
-3. **Carga un documento normativo.** Cierra sesión, entra con la cuenta gestora y abre **Cargar documento** desde `/gestor-panel/`. Selecciona un PDF de una ley federal, completa los metadatos solicitados y envíalo. La carga se guarda y la extracción, fragmentación y creación de embeddings se ejecutan en segundo plano.
+3. **Obtén y carga una ley federal.** Usa el [portal de Leyes Federales de la Cámara de Diputados](https://www.diputados.gob.mx/LeyesBiblio/index.htm) para localizar y descargar el PDF de una ley. Cierra sesión, entra con la cuenta gestora y abre **Cargar documento** desde `/gestor-panel/`. Selecciona el PDF descargado, completa los metadatos solicitados y envíalo. La carga se guarda y la extracción, fragmentación y creación de embeddings se ejecutan en segundo plano.
 
 4. **Confirma el resultado del procesamiento.** En `/gestor-panel/`, revisa el estado de indexación de la ley hasta que aparezca como **Lista**. Para observar la ejecución del worker:
 

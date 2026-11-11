@@ -270,6 +270,16 @@
                 var pageSize = serverPagination ? Math.max(total, 1) : 10;
                 var sortColumn = null;
                 var sortDirection = 1;
+                if (serverPagination) {
+                    var currentOrdering = new URLSearchParams(window.location.search).get('ordering') || '';
+                    table.querySelectorAll('th[data-sort-key]').forEach(function (header) {
+                        var key = header.dataset.sortKey;
+                        var direction = currentOrdering === key ? 'ascending' : currentOrdering === '-' + key ? 'descending' : 'none';
+                        var icon = header.querySelector('.sort-icon');
+                        if (icon) icon.textContent = direction === 'ascending' ? '↑' : direction === 'descending' ? '↓' : '↕';
+                        header.setAttribute('aria-sort', direction);
+                    });
+                }
 
                 var controls = document.createElement('div');
                 controls.className = 'enhanced-table-controls';
@@ -307,6 +317,19 @@
 
                 var serverEmptyRow = tbody && tbody.querySelector('tr td[colspan]');
                 var noResultsRow = null;
+                if (serverPagination) {
+                    wrapper.addEventListener('server-table-updated', function () {
+                        tbody = table.querySelector('tbody');
+                        rows = Array.from(tbody ? tbody.querySelectorAll('tr') : []).filter(function (row) {
+                            return !row.querySelector('td[colspan]');
+                        });
+                        total = rows.length;
+                        filteredRows = rows.slice();
+                        page = 1;
+                        serverEmptyRow = tbody && tbody.querySelector('tr td[colspan]');
+                        render();
+                    });
+                }
                 if (tbody && !serverEmptyRow && searchInput) {
                     noResultsRow = document.createElement('tr');
                     noResultsRow.hidden = true;
@@ -370,6 +393,16 @@
                     var button = header.querySelector('.sort-button');
                     if (!button) return;
                     button.addEventListener('click', function () {
+                        if (serverPagination) {
+                            var key = header.dataset.sortKey;
+                            if (!key) return;
+                            var url = new URL(window.location.href);
+                            var currentOrdering = url.searchParams.get('ordering') || '';
+                            url.searchParams.set('ordering', currentOrdering === key ? '-' + key : key);
+                            url.searchParams.set('page', '1');
+                            window.location.assign(url.toString());
+                            return;
+                        }
                         var column = Number(header.dataset.sort);
                         sortDirection = sortColumn === column ? -sortDirection : 1;
                         sortColumn = column;
@@ -388,6 +421,83 @@
                     });
                 });
                 render();
+            });
+        })();
+    </script>
+    <script>
+        (function () {
+            document.querySelectorAll('form[data-live-search]').forEach(function (form) {
+                var input = form.querySelector('input[name="q"]');
+                var wrapper = document.getElementById(form.dataset.resultsId);
+                var pagination = document.getElementById(form.dataset.paginationId);
+                if (!input || !wrapper || !pagination) return;
+
+                var timer;
+                var requestNumber = 0;
+                var controller = null;
+
+                async function buscarEnServidor() {
+                    if (controller) controller.abort();
+                    controller = new AbortController();
+                    var currentRequest = ++requestNumber;
+                    var url = new URL(form.action, window.location.href);
+                    new FormData(form).forEach(function (value, key) {
+                        if (String(value).trim()) url.searchParams.set(key, String(value).trim());
+                        else url.searchParams.delete(key);
+                    });
+                    url.searchParams.delete('page');
+                    url.searchParams.set('page', '1');
+
+                    try {
+                        var response = await fetch(url, {
+                            headers: {'Accept': 'text/html', 'X-Requested-With': 'XMLHttpRequest'},
+                            credentials: 'same-origin',
+                            signal: controller.signal
+                        });
+                        if (!response.ok) throw new Error('HTTP ' + response.status);
+                        var documento = new DOMParser().parseFromString(await response.text(), 'text/html');
+                        var nuevoWrapper = documento.getElementById(form.dataset.resultsId);
+                        var nuevoPaginador = documento.getElementById(form.dataset.paginationId);
+                        var nuevoBody = nuevoWrapper && nuevoWrapper.querySelector('tbody');
+                        var bodyActual = wrapper.querySelector('tbody');
+                        if (!nuevoBody || !bodyActual || !nuevoPaginador) {
+                            throw new Error('La respuesta no contiene los resultados esperados.');
+                        }
+                        if (currentRequest !== requestNumber) return;
+
+                        bodyActual.replaceWith(nuevoBody);
+                        pagination.replaceChildren.apply(pagination, Array.from(nuevoPaginador.childNodes));
+                        wrapper.dispatchEvent(new CustomEvent('server-table-updated', {bubbles: true}));
+                        window.history.replaceState(null, '', url);
+
+                        var limpiar = form.querySelector('[data-live-search-clear]');
+                        if (limpiar) limpiar.hidden = !input.value.trim();
+                    } catch (error) {
+                        if (error.name === 'AbortError') return;
+                        console.error('No se pudo actualizar la búsqueda de la tabla.', error);
+                        if (window.showAppToast) {
+                            window.showAppToast('No se pudieron actualizar los resultados. Inténtalo nuevamente.', 'error');
+                        }
+                    }
+                }
+
+                input.addEventListener('input', function () {
+                    window.clearTimeout(timer);
+                    timer = window.setTimeout(buscarEnServidor, 300);
+                });
+                var clearButton = form.querySelector('[data-live-search-clear]');
+                if (clearButton) {
+                    clearButton.addEventListener('click', function () {
+                        input.value = '';
+                        input.dispatchEvent(new Event('input'));
+                        input.focus();
+                    });
+                }
+                form.addEventListener('submit', function (event) {
+                    event.preventDefault();
+                    window.clearTimeout(timer);
+                    buscarEnServidor();
+                });
             });
         })();
     </script>

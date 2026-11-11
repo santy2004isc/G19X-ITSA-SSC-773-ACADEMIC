@@ -7,7 +7,7 @@ from django.views.decorators.http import require_POST
 from functools import wraps
 from ...models import Usuario
 from ...forms.admin_forms import CrearUsuarioAdminForm, EditarUsuarioAdminForm
-from ..pagination import PAGE_SIZE_OPTIONS, get_page_size
+from ..pagination import PAGE_SIZE_OPTIONS, apply_table_ordering, get_page_size
 
 
 def admin_required(view_func):
@@ -31,7 +31,17 @@ def admin_dashboard_view(request):
             | Q(apellido__icontains=busqueda)
             | Q(correo_electronico__icontains=busqueda)
         )
-    usuarios = usuarios.order_by('-fecha_registro', 'pk')
+    usuarios, ordering = apply_table_ordering(
+        usuarios,
+        request,
+        {
+            'nombre': ('nombre', 'apellido'),
+            'correo': ('correo_electronico',),
+            'rol': ('rol',),
+            'estado': ('activo',),
+        },
+        ('-fecha_registro', 'pk'),
+    )
     page_size = get_page_size(request)
     page_obj = Paginator(usuarios, page_size).get_page(request.GET.get('page'))
 
@@ -50,6 +60,7 @@ def admin_dashboard_view(request):
         'page_size': page_size,
         'page_size_options': PAGE_SIZE_OPTIONS,
         'busqueda': busqueda,
+        'ordering': ordering,
     }
     return render(request, 'admin/dashboard.html', context)
 

@@ -46,30 +46,41 @@
             </div>
         </div>
 
-        <form method="get" class="flex flex-wrap items-end gap-3" role="search">
-            {% if request.GET.seguimiento %}<input type="hidden" name="seguimiento" value="{{ request.GET.seguimiento }}">{% endif %}
-            <input type="hidden" name="page_size" value="{{ page_size }}">
-            <label for="buscarLeyes" class="flex min-w-56 flex-1 flex-col gap-1 text-sm text-slate-600">
-                Buscar por nombre oficial o siglas
-                <input id="buscarLeyes" type="search" name="q" value="{{ busqueda }}" placeholder="Escribe el nombre o siglas..." class="rounded-lg border border-slate-300 bg-white px-3 py-2 text-slate-800">
-            </label>
-            <button type="submit" class="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">Buscar</button>
-            {% if busqueda %}<a href="?page_size={{ page_size }}{% if request.GET.seguimiento %}&amp;seguimiento={{ request.GET.seguimiento|urlencode }}{% endif %}" class="px-2 py-2 text-sm text-slate-600 hover:text-blue-600">Limpiar</a>{% endif %}
-        </form>
+        <div class="flex flex-wrap items-end justify-between gap-4">
+            <form method="get" class="flex items-center gap-2">
+                {% if busqueda %}<input type="hidden" name="q" value="{{ busqueda }}">{% endif %}
+                {% if request.GET.seguimiento %}<input type="hidden" name="seguimiento" value="{{ request.GET.seguimiento }}">{% endif %}
+                {% if ordering %}<input type="hidden" name="ordering" value="{{ ordering }}">{% endif %}
+                <label for="leyesPageSize" class="text-sm text-slate-600">Filas por página</label>
+                <select id="leyesPageSize" name="page_size" onchange="this.form.submit()" class="rounded-lg border border-slate-300 bg-white px-2 py-2 text-slate-700">
+                    {% for option in page_size_options %}<option value="{{ option }}" {% if option == page_size %}selected{% endif %}>{{ option }}</option>{% endfor %}
+                </select>
+            </form>
+            <form method="get" action="{% url 'gestor_dashboard' %}" class="flex flex-wrap items-end gap-2" role="search" data-live-search data-results-id="leyesTable" data-pagination-id="leyesPagination">
+                {% if request.GET.seguimiento %}<input type="hidden" name="seguimiento" value="{{ request.GET.seguimiento }}">{% endif %}
+                <input type="hidden" name="page_size" value="{{ page_size }}">
+                {% if ordering %}<input type="hidden" name="ordering" value="{{ ordering }}">{% endif %}
+                <label for="buscarLeyes" class="flex min-w-56 flex-col gap-1 text-sm text-slate-600">
+                    Buscar por nombre oficial o siglas
+                    <input id="buscarLeyes" type="search" name="q" value="{{ busqueda }}" placeholder="Escribe el nombre o siglas..." class="rounded-lg border border-slate-300 bg-white px-3 py-2 text-slate-800">
+                </label>
+                {% if busqueda %}<button type="button" data-live-search-clear class="px-2 py-2 text-sm text-slate-600 hover:text-blue-600">Limpiar</button>{% endif %}
+            </form>
+        </div>
 
         <!-- Tabla de Documentos -->
-        <div class="table-scroll bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden" role="region" aria-label="Tabla de leyes; desliza horizontalmente para ver todas las columnas" tabindex="0" data-enhanced-table data-server-pagination="true" data-disable-search="true">
+        <div id="leyesTable" class="table-scroll bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden" role="region" aria-label="Tabla de leyes; desliza horizontalmente para ver todas las columnas" tabindex="0" data-enhanced-table data-server-pagination="true" data-disable-search="true">
             <p class="table-scroll-hint">Desliza horizontalmente para consultar todas las columnas.</p>
             <table class="w-full text-left text-sm text-slate-600">
                 <thead class="bg-slate-50 text-slate-700 uppercase text-xs border-b border-slate-200">
                     <tr>
-                        <th class="px-5 py-3 sortable-column" data-sort="0"><button type="button" class="sort-button">Nombre Oficial <span class="sort-icon" aria-hidden="true">↕</span></button></th>
-                        <th class="px-4 py-3 sortable-column" data-sort="1"><button type="button" class="sort-button">Siglas <span class="sort-icon" aria-hidden="true">↕</span></button></th>
-                        <th class="px-4 py-3 sortable-column" data-sort="2"><button type="button" class="sort-button">Publicación <span class="sort-icon" aria-hidden="true">↕</span></button></th>
-                        <th class="px-4 py-3 sortable-column" data-sort="3"><button type="button" class="sort-button">Última Reforma <span class="sort-icon" aria-hidden="true">↕</span></button></th>
-                        <th class="px-5 py-3 sortable-column" data-sort="4"><button type="button" class="sort-button">Cargado Por <span class="sort-icon" aria-hidden="true">↕</span></button></th>
-                        <th class="px-5 py-3 sortable-column" data-sort="5"><button type="button" class="sort-button">Última Modificación <span class="sort-icon" aria-hidden="true">↕</span></button></th>
-                        <th class="px-4 py-3 sortable-column" data-sort="6"><button type="button" class="sort-button">Estado <span class="sort-icon" aria-hidden="true">↕</span></button></th>
+                        <th class="px-5 py-3 sortable-column" data-sort="0" data-sort-key="nombre"><button type="button" class="sort-button">Nombre Oficial <span class="sort-icon" aria-hidden="true">↕</span></button></th>
+                        <th class="px-4 py-3 sortable-column" data-sort="1" data-sort-key="siglas"><button type="button" class="sort-button">Siglas <span class="sort-icon" aria-hidden="true">↕</span></button></th>
+                        <th class="px-4 py-3 sortable-column" data-sort="2" data-sort-key="publicacion"><button type="button" class="sort-button">Publicación <span class="sort-icon" aria-hidden="true">↕</span></button></th>
+                        <th class="px-4 py-3 sortable-column" data-sort="3" data-sort-key="reforma"><button type="button" class="sort-button">Última Reforma <span class="sort-icon" aria-hidden="true">↕</span></button></th>
+                        <th class="px-5 py-3 sortable-column" data-sort="4" data-sort-key="usuario"><button type="button" class="sort-button">Cargado Por <span class="sort-icon" aria-hidden="true">↕</span></button></th>
+                        <th class="px-5 py-3 sortable-column" data-sort="5" data-sort-key="modificacion"><button type="button" class="sort-button">Última Modificación <span class="sort-icon" aria-hidden="true">↕</span></button></th>
+                        <th class="px-4 py-3 sortable-column" data-sort="6" data-sort-key="estado"><button type="button" class="sort-button">Estado <span class="sort-icon" aria-hidden="true">↕</span></button></th>
                         <th class="px-4 py-3">Indexación</th>
                         <th class="px-4 py-3 text-right">Acciones</th>
                     </tr>
@@ -160,21 +171,13 @@
                 </tbody>
             </table>
         </div>
-        <nav class="flex flex-wrap items-center justify-between gap-4 rounded-xl border border-slate-200 bg-white px-5 py-4 text-sm" aria-label="Paginación de leyes">
+        <nav id="leyesPagination" class="flex flex-wrap items-center justify-between gap-4 rounded-xl border border-slate-200 bg-white px-5 py-4 text-sm" aria-label="Paginación de leyes">
             <span class="text-slate-500">Mostrando {{ page_obj.start_index }}–{{ page_obj.end_index }} de {{ page_obj.paginator.count }}</span>
-            <form method="get" class="flex items-center gap-2">
-                {% if request.GET.seguimiento %}<input type="hidden" name="seguimiento" value="{{ request.GET.seguimiento }}">{% endif %}
-                {% if busqueda %}<input type="hidden" name="q" value="{{ busqueda }}">{% endif %}
-                <label for="leyesPageSize" class="text-slate-600">Filas por página</label>
-                <select id="leyesPageSize" name="page_size" onchange="this.form.submit()" class="rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-slate-700">
-                    {% for option in page_size_options %}<option value="{{ option }}" {% if option == page_size %}selected{% endif %}>{{ option }}</option>{% endfor %}
-                </select>
-            </form>
             {% if page_obj.paginator.num_pages > 1 %}
             <div class="flex items-center gap-3">
-                {% if page_obj.has_previous %}<a class="text-blue-600 hover:underline" href="?page={{ page_obj.previous_page_number }}&amp;page_size={{ page_size }}{% if busqueda %}&amp;q={{ busqueda|urlencode }}{% endif %}{% if request.GET.seguimiento %}&amp;seguimiento={{ request.GET.seguimiento|urlencode }}{% endif %}">Anterior</a>{% endif %}
+                {% if page_obj.has_previous %}<a class="text-blue-600 hover:underline" href="?page={{ page_obj.previous_page_number }}&amp;page_size={{ page_size }}{% if busqueda %}&amp;q={{ busqueda|urlencode }}{% endif %}{% if request.GET.seguimiento %}&amp;seguimiento={{ request.GET.seguimiento|urlencode }}{% endif %}{% if ordering %}&amp;ordering={{ ordering|urlencode }}{% endif %}">Anterior</a>{% endif %}
                 <span class="text-slate-600">Página {{ page_obj.number }} de {{ page_obj.paginator.num_pages }}</span>
-                {% if page_obj.has_next %}<a class="text-blue-600 hover:underline" href="?page={{ page_obj.next_page_number }}&amp;page_size={{ page_size }}{% if busqueda %}&amp;q={{ busqueda|urlencode }}{% endif %}{% if request.GET.seguimiento %}&amp;seguimiento={{ request.GET.seguimiento|urlencode }}{% endif %}">Siguiente</a>{% endif %}
+                {% if page_obj.has_next %}<a class="text-blue-600 hover:underline" href="?page={{ page_obj.next_page_number }}&amp;page_size={{ page_size }}{% if busqueda %}&amp;q={{ busqueda|urlencode }}{% endif %}{% if request.GET.seguimiento %}&amp;seguimiento={{ request.GET.seguimiento|urlencode }}{% endif %}{% if ordering %}&amp;ordering={{ ordering|urlencode }}{% endif %}">Siguiente</a>{% endif %}
             </div>
             {% endif %}
         </nav>
@@ -192,6 +195,16 @@
         const estadosConocidos = new Map(
             Array.from(celdas, ([id, celda]) => [id, celda.dataset.estadoIndexacion])
         );
+        dashboard.addEventListener('server-table-updated', function () {
+            celdas.clear();
+            document.querySelectorAll('[data-indexacion-ley]').forEach(function (celda) {
+                const id = celda.dataset.indexacionLey;
+                celdas.set(id, celda);
+                if (!estadosConocidos.has(id) && id !== seguimiento) {
+                    estadosConocidos.set(id, celda.dataset.estadoIndexacion);
+                }
+            });
+        });
         let seguimiento = dashboard.dataset.seguimiento;
         if (seguimiento) estadosConocidos.delete(seguimiento);
 
