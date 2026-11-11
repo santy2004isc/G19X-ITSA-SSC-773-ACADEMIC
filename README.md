@@ -99,7 +99,7 @@ Los paneles propios están limitados por rol:
 
 ## Pruebas
 
-La suite actual tiene 58 pruebas en `apps/core/tests.py`. Cubre el registro de modelos y las vistas/hash de contraseñas en Django Admin, autenticación, redirecciones seguras, CSRF y permisos, paginación, carga y reproceso asíncronos, errores visibles de indexación, extracción/fragmentación de PDF, chat con streaming SSE, cuotas, fallback y búsqueda híbrida.
+La suite actual tiene 59 pruebas en `apps/core/tests.py`. Cubre el registro de modelos y las vistas/hash de contraseñas en Django Admin, autenticación, redirecciones seguras, CSRF y permisos, paginación, carga y reproceso asíncronos, errores visibles de indexación, extracción/fragmentación de PDF, chat con streaming SSE, cuotas, fallback y búsqueda híbrida.
 
 Con los servicios de Docker iniciados, ejecuta:
 
@@ -112,6 +112,52 @@ O desde el equipo anfitrión, si tiene instaladas las dependencias y PostgreSQL 
 ```powershell
 python manage.py test apps.core
 ```
+
+### Prueba funcional de punta a punta
+
+Este recorrido comprueba el flujo principal desde el inicio de los servicios hasta una respuesta del chat fundamentada en un PDF:
+
+1. **Inicia los servicios** desde la raíz del proyecto:
+
+   ```powershell
+   docker compose up --build -d
+   docker compose ps
+   ```
+
+   Verifica que `db`, `redis`, `web` y `worker` estén activos. Si es la primera ejecución, aplica las migraciones y crea el administrador:
+
+   ```powershell
+   docker compose exec web python manage.py migrate
+   docker compose exec web python manage.py createsuperuser
+   ```
+
+2. **Crea un usuario gestor.** Inicia sesión con el superusuario en <http://localhost:8000/>. En el panel de administración de la aplicación, abre **Crear Usuario**, registra una cuenta y asígnale el rol **Gestor de la Base de Conocimiento**.
+
+3. **Carga un documento normativo.** Cierra sesión, entra con la cuenta gestora y abre **Cargar documento** desde `/gestor-panel/`. Selecciona un PDF de una ley federal, completa los metadatos solicitados y envíalo. La carga se guarda y la extracción, fragmentación y creación de embeddings se ejecutan en segundo plano.
+
+4. **Confirma el resultado del procesamiento.** En `/gestor-panel/`, revisa el estado de la ley hasta que aparezca como **Completado** y que indique fragmentos generados. Para observar la ejecución del worker:
+
+   ```powershell
+   docker compose logs -f worker
+   ```
+
+   Si el estado cambia a **Error**, el dashboard muestra el detalle del procesamiento; revisa también los logs del worker con `docker compose logs worker --tail 100`.
+
+5. **Prueba el registro y el chat.** Cierra sesión de gestor, crea una cuenta desde **Registro** y entra con ella. Abre `/chat/` y pregunta por un artículo o disposición incluida en el PDF cargado. La respuesta debe aparecer progresivamente; al terminar, comprueba las citas normativas y que el intercambio aparezca en el historial.
+
+6. **Comprueba la persistencia.** Recarga la conversación o vuelve a seleccionarla desde el historial: los mensajes y las citas deben conservarse. Para validar cuotas, envía consultas jurídicas con una cuenta registrada y revisa el contador de mensajes restantes.
+
+7. **Ejecuta la suite automatizada** para verificar las funciones cubiertas por tests:
+
+   ```powershell
+   docker compose exec web python manage.py test apps.core
+   ```
+
+   Para detener los servicios al terminar:
+
+   ```powershell
+   docker compose down
+   ```
 
 ## Estilos
 
