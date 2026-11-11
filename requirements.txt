@@ -11,3 +11,4 @@ python-dotenv==1.2.4
 requests==2.34.2
 
 sentence-transformers==6.1.0
+celery[redis]==5.5.3

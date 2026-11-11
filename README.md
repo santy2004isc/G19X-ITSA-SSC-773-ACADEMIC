@@ -53,8 +53,9 @@ El sistema clasifica primero el mensaje: los saludos y las cortesías se respond
    - `GROQ_API_KEY`: créala en [Groq Console](https://console.groq.com/keys).
    - `GEMINI_API_KEY`: créala en [Google AI Studio](https://aistudio.google.com/app/apikey).
    - `GROQ_MODEL` y `GEMINI_MODEL`; puedes conservar los valores de `.env.example`.
+   - `CELERY_BROKER_URL`; en Docker Compose, conserva `redis://redis:6379/0`.
 
-3. Construye e inicia los contenedores:
+3. Construye e inicia la aplicación, Redis y el worker de Celery:
 
    ```bash
    docker-compose up --build -d
@@ -66,6 +67,12 @@ El sistema clasifica primero el mensaje: los saludos y las cortesías se respond
    docker-compose exec web python manage.py migrate
    ```
 
+Las cargas y reemplazos de PDF se procesan en segundo plano. El worker comparte
+con el servidor web el volumen `media_data` para leer temporalmente los archivos
+pendientes; conserva Redis y este volumen al desplegar. Para revisar el estado
+del worker, usa `docker-compose logs -f worker`. En despliegues con varios hosts,
+sustituye `media_data` por almacenamiento compartido (por ejemplo, un bucket S3).
+
 5. Crea el superusuario administrador:
 
    ```bash
@@ -76,8 +83,8 @@ El sistema clasifica primero el mensaje: los saludos y las cortesías se respond
 
 6. Abre **[http://localhost:8000](http://localhost:8000)** e inicia sesión como administrador.
 7. En el panel del administrador, crea una cuenta y asigna el rol **Gestor**.
-8. Cierra la sesión de administrador, inicia sesión como gestor y entra en **Base de conocimiento**. Carga el PDF descargado. Asegúrate de que el nombre oficial coincida con el documento.
-   - La primera carga puede tardar porque el contenedor descarga el modelo de embeddings `paraphrase-multilingual-mpnet-base-v2`. Las cargas siguientes reutilizan el modelo una vez descargado.
+8. Cierra la sesión de administrador, inicia sesión como gestor y entra en **Base de conocimiento**. Carga el PDF descargado. Asegúrate de que el nombre oficial coincida con el documento. La respuesta se guarda enseguida; la tabla muestra si la indexación está en cola, procesándose, lista o falló.
+   - La primera carga puede tardar porque el worker descarga el modelo de embeddings `paraphrase-multilingual-mpnet-base-v2`.
 9. Cierra la sesión del gestor, entra al sistema con una cuenta de usuario registrado (puedes crearla desde el registro público o desde el administrador) y abre el chat.
 10. Comprueba las respuestas con preguntas y casos prácticos:
 
@@ -204,6 +211,7 @@ SECRET_KEY=tu_clave_secreta
 DEBUG=True
 ALLOWED_HOSTS=localhost,127.0.0.1,0.0.0.0
 CSRF_TRUSTED_ORIGINS=http://127.0.0.1:8000,http://0.0.0.0:8000
+CELERY_BROKER_URL=redis://redis:6379/0
 
 # Tiempo máximo de inactividad de una sesión, expresado en minutos.
 SESSION_IDLE_TIMEOUT_SECONDS=30 

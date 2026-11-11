@@ -221,6 +221,18 @@ html[data-theme="dark"] .text-emerald-800 { color: #a7f3d0 !important; }
 html[data-theme="dark"] .text-amber-800,
 html[data-theme="dark"] .text-yellow-800 { color: #fde68a !important; }
 html[data-theme="dark"] .text-red-800 { color: #fecaca !important; }
+html[data-theme="dark"] .table-scroll .bg-emerald-100 {
+  border: 1px solid #047857 !important;
+  background-color: #064e3b !important;
+  color: #a7f3d0 !important;
+}
+html[data-theme="dark"] .table-scroll .bg-red-100 {
+  border: 1px solid #b91c1c !important;
+  background-color: #7f1d1d !important;
+  color: #fecaca !important;
+}
+html[data-theme="dark"] .table-scroll .text-red-600,
+html[data-theme="dark"] .table-scroll .text-red-700 { color: #fecaca !important; }
 html[data-theme="dark"] .text-slate-900,
 html[data-theme="dark"] .text-slate-800 { color: #f1f5f9 !important; }
 html[data-theme="dark"] .text-slate-700,

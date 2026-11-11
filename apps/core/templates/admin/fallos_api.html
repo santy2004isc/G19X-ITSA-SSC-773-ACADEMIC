@@ -48,6 +48,16 @@
                     {% endfor %}
                 </tbody>
             </table>
+            {% if page_obj.paginator.num_pages > 1 %}
+            <nav class="flex items-center justify-between border-t border-slate-100 px-6 py-4 text-sm" aria-label="Paginación de fallos">
+                <span class="text-slate-500">Mostrando {{ page_obj.start_index }}–{{ page_obj.end_index }} de {{ page_obj.paginator.count }}</span>
+                <div class="flex items-center gap-3">
+                    {% if page_obj.has_previous %}<a class="text-blue-600 hover:underline" href="?page={{ page_obj.previous_page_number }}{% if proveedor_filtro %}&amp;proveedor={{ proveedor_filtro }}{% endif %}">Anterior</a>{% endif %}
+                    <span class="text-slate-600">Página {{ page_obj.number }} de {{ page_obj.paginator.num_pages }}</span>
+                    {% if page_obj.has_next %}<a class="text-blue-600 hover:underline" href="?page={{ page_obj.next_page_number }}{% if proveedor_filtro %}&amp;proveedor={{ proveedor_filtro }}{% endif %}">Siguiente</a>{% endif %}
+                </div>
+            </nav>
+            {% endif %}
         </div>
     </main>
 </div>

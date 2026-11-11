@@ -261,17 +261,102 @@ class ControlDeRolesTest(TestCase):
         self.usuario_gestor.refresh_from_db()
         self.assertTrue(self.usuario_gestor.activo)
 
-    @patch('apps.core.views.gestor.gestor_views.generar_vector_embedding')
-    @patch('apps.core.views.gestor.gestor_views.procesar_pdf_en_memoria')
-    def test_carga_no_vuelve_a_indexar_contenido_ya_registrado(self, mock_procesar, mock_embedding):
+    def test_paginacion_en_los_tres_listados_administrativos(self):
+        self.client.force_login(self.usuario_admin)
+        Usuario.objects.bulk_create([
+            Usuario(
+                correo_electronico=f'pagina-{i}@test.com',
+                nombre='Usuario',
+                apellido=str(i),
+            )
+            for i in range(24)
+        ])
+        LeyFederal.objects.bulk_create([
+            LeyFederal(
+                nombre=f'Ley paginada {i}',
+                fecha_publicacion=timezone.now().date(),
+                hash_documento=f'{i:064}',
+            )
+            for i in range(26)
+        ])
+        RegistroFalloAPI.objects.bulk_create([
+            RegistroFalloAPI(
+                proveedor_solicitado=RegistroFalloAPI.ProveedorIA.GROQ,
+                codigo_error=f'error-{i}',
+            )
+            for i in range(26)
+        ])
+
+        usuarios = self.client.get(reverse('admin_dashboard') + '?page=2')
+        self.client.force_login(self.usuario_gestor)
+        leyes = self.client.get(reverse('gestor_dashboard') + '?page=2')
+        self.client.force_login(self.usuario_admin)
+        fallos = self.client.get(reverse('admin_fallos_api') + '?page=2&proveedor=GROQ')
+
+        self.assertEqual(usuarios.context['page_obj'].paginator.count, 26)
+        self.assertEqual(len(usuarios.context['usuarios']), 1)
+        self.assertEqual(leyes.context['page_obj'].paginator.count, 26)
+        self.assertEqual(len(leyes.context['leyes']), 1)
+        self.assertEqual(fallos.context['page_obj'].paginator.count, 26)
+        self.assertEqual(len(fallos.context['fallos']), 1)
+
+    def test_dashboard_muestra_mensaje_visible_cuando_falla_la_indexacion(self):
         self.client.force_login(self.usuario_gestor)
         LeyFederal.objects.create(
-            nombre='Ley ya cargada',
+            nombre='Ley con error de indexación',
+            fecha_publicacion=timezone.now().date(),
+            estado_procesamiento=LeyFederal.EstadoProcesamiento.ERROR,
+            error_procesamiento='El PDF no contiene texto legible.',
+        )
+
+        response = self.client.get(reverse('gestor_dashboard'))
+
+        self.assertContains(response, 'Falló la indexación')
+        self.assertContains(response, 'El PDF no contiene texto legible.')
+
+    @patch('apps.core.tasks.default_storage.delete')
+    @patch('apps.core.tasks.default_storage.open', return_value=io.BytesIO(b'%PDF'))
+    @patch(
+        'apps.core.tasks.procesar_pdf_en_memoria',
+        return_value=('d' * 64, 'b' * 64, ['Artículo 1. Texto vigente.']),
+    )
+    def test_tarea_de_pdf_actualiza_hashes_y_preserva_fragmentos_si_no_cambia_contenido(
+        self,
+        mock_procesar,
+        mock_abrir,
+        mock_eliminar,
+    ):
+        from .tasks import procesar_pdf_ley
+
+        ley = LeyFederal.objects.create(
+            nombre='Ley en reproceso',
             fecha_publicacion=timezone.now().date(),
             hash_documento='a' * 64,
             hash_contenido='b' * 64,
+            archivo_proceso='pdf_ingesta/reemplazo.pdf',
+            estado_procesamiento=LeyFederal.EstadoProcesamiento.PENDIENTE,
         )
-        mock_procesar.return_value = ('c' * 64, 'b' * 64, ['Texto ya indexado'])
+        FragmentoNormativo.objects.create(
+            ley=ley,
+            contenido_fragmento='Artículo 1. Texto vigente.',
+            vector_embedding=[0.0] * 768,
+            hash_fragmento='c' * 64,
+        )
+
+        procesar_pdf_ley.run(ley.pk)
+
+        ley.refresh_from_db()
+        self.assertEqual(ley.hash_documento, 'd' * 64)
+        self.assertEqual(ley.estado_procesamiento, LeyFederal.EstadoProcesamiento.COMPLETADO)
+        self.assertEqual(ley.archivo_proceso, '')
+        self.assertEqual(ley.fragmentos.count(), 1)
+        mock_procesar.assert_called_once()
+        mock_eliminar.assert_called_once_with('pdf_ingesta/reemplazo.pdf')
+
+    @patch('apps.core.views.gestor.gestor_views.default_storage.save', return_value='pdf_ingesta/nueva.pdf')
+    @patch('apps.core.views.gestor.gestor_views.procesar_pdf_ley.delay')
+    def test_carga_encola_el_procesamiento_sin_generar_vectores_en_la_peticion(self, mock_delay, mock_save):
+        self.client.force_login(self.usuario_gestor)
 
         response = self.client.post(
             reverse('gestor_cargar_documento'),
@@ -285,13 +370,16 @@ class ControlDeRolesTest(TestCase):
             },
         )
 
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(LeyFederal.objects.count(), 1)
-        mock_embedding.assert_not_called()
+        self.assertRedirects(response, reverse('gestor_dashboard'), fetch_redirect_response=False)
+        ley = LeyFederal.objects.get(nombre='Copia de la ley')
+        self.assertEqual(ley.estado_procesamiento, LeyFederal.EstadoProcesamiento.PENDIENTE)
+        self.assertEqual(ley.archivo_proceso, 'pdf_ingesta/nueva.pdf')
+        mock_save.assert_called_once()
+        mock_delay.assert_called_once_with(ley.pk)
 
-    @patch('apps.core.views.gestor.gestor_views.generar_vector_embedding')
-    @patch('apps.core.views.gestor.gestor_views.procesar_pdf_en_memoria')
-    def test_edicion_con_mismo_contenido_conserva_fragmentos(self, mock_procesar, mock_embedding):
+    @patch('apps.core.views.gestor.gestor_views.default_storage.save', return_value='pdf_ingesta/reemplazo.pdf')
+    @patch('apps.core.views.gestor.gestor_views.procesar_pdf_ley.delay')
+    def test_edicion_de_pdf_encola_reproceso_y_conserva_fragmentos_hasta_completar(self, mock_delay, mock_save):
         self.client.force_login(self.usuario_gestor)
         ley = LeyFederal.objects.create(
             nombre='Ley existente',
@@ -305,7 +393,6 @@ class ControlDeRolesTest(TestCase):
             vector_embedding=[0.0] * 768,
             hash_fragmento='c' * 64,
         )
-        mock_procesar.return_value = ('d' * 64, 'b' * 64, ['Artículo 1. Texto vigente.'])
 
         response = self.client.post(
             reverse('gestor_editar_ley', args=[ley.id]),
@@ -319,13 +406,20 @@ class ControlDeRolesTest(TestCase):
             },
         )
 
-        self.assertEqual(response.status_code, 302)
+        self.assertRedirects(response, reverse('gestor_dashboard'), fetch_redirect_response=False)
         self.assertEqual(ley.fragmentos.count(), 1)
-        mock_embedding.assert_not_called()
+        ley.refresh_from_db()
+        self.assertEqual(ley.estado_procesamiento, LeyFederal.EstadoProcesamiento.PENDIENTE)
+        self.assertEqual(ley.archivo_proceso, 'pdf_ingesta/reemplazo.pdf')
+        mock_save.assert_called_once()
+        mock_delay.assert_called_once_with(ley.pk)
 
-    @patch('apps.core.views.gestor.gestor_views.generar_vector_embedding', return_value=[0.0] * 768)
+    @patch(
+        'apps.core.services.document_ingestion.generar_vectores_en_lote',
+        side_effect=lambda chunks, batch_size: [[0.0] * 768 for _ in chunks],
+    )
     def test_fragmento_repetido_se_deduplica_en_una_ley_y_se_acepta_en_otra(self, mock_embedding):
-        from .views.gestor.gestor_views import _crear_fragmentos_normativos
+        from .services.document_ingestion import crear_fragmentos_normativos
 
         ley_a = LeyFederal.objects.create(
             nombre='Ley A',
@@ -340,10 +434,10 @@ class ControlDeRolesTest(TestCase):
         repetido = 'Artículo 1. Texto legal compartido.'
 
         FragmentoNormativo.objects.bulk_create(
-            _crear_fragmentos_normativos(ley_a, [repetido, repetido])
+            crear_fragmentos_normativos(ley_a, [repetido, repetido])
         )
         FragmentoNormativo.objects.bulk_create(
-            _crear_fragmentos_normativos(ley_b, [repetido])
+            crear_fragmentos_normativos(ley_b, [repetido])
         )
 
         self.assertEqual(FragmentoNormativo.objects.count(), 2)
@@ -352,9 +446,12 @@ class ControlDeRolesTest(TestCase):
         self.assertEqual(ley_a.fragmentos.get().articulo, '1')
         self.assertEqual(mock_embedding.call_count, 2)
 
-    @patch('apps.core.views.gestor.gestor_views.generar_vector_embedding', return_value=[0.0] * 768)
+    @patch(
+        'apps.core.services.document_ingestion.generar_vectores_en_lote',
+        side_effect=lambda chunks, batch_size: [[0.0] * 768 for _ in chunks],
+    )
     def test_articulos_despues_de_transitorios_se_identifican(self, mock_embedding):
-        from .views.gestor.gestor_views import _crear_fragmentos_normativos
+        from .services.document_ingestion import crear_fragmentos_normativos
 
         ley = LeyFederal.objects.create(
             nombre='Ley con transitorios',
@@ -368,17 +465,20 @@ class ControlDeRolesTest(TestCase):
             'Artículo 2. Derogaciones.',
         ]
 
-        fragmentos = _crear_fragmentos_normativos(ley, chunks)
+        fragmentos = crear_fragmentos_normativos(ley, chunks)
 
         self.assertEqual(
             [fragmento.articulo for fragmento in fragmentos],
             ['1', '', '1 Transitorio', '2 Transitorio'],
         )
-        self.assertEqual(mock_embedding.call_count, 4)
+        mock_embedding.assert_called_once()
 
-    @patch('apps.core.views.gestor.gestor_views.generar_vector_embedding', return_value=[0.0] * 768)
+    @patch(
+        'apps.core.services.document_ingestion.generar_vectores_en_lote',
+        side_effect=lambda chunks, batch_size: [[0.0] * 768 for _ in chunks],
+    )
     def test_articulo_anterior_a_transitorios_mismo_fragmento_no_es_transitorio(self, mock_embedding):
-        from .views.gestor.gestor_views import _crear_fragmentos_normativos
+        from .services.document_ingestion import crear_fragmentos_normativos
 
         ley = LeyFederal.objects.create(
             nombre='Ley con título y transitorios juntos',
@@ -390,7 +490,7 @@ class ControlDeRolesTest(TestCase):
             'Artículo Primero.- Entrada en vigor.',
         ]
 
-        fragmentos = _crear_fragmentos_normativos(ley, chunks)
+        fragmentos = crear_fragmentos_normativos(ley, chunks)
 
         self.assertEqual(
             [fragmento.articulo for fragmento in fragmentos],

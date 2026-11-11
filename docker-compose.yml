@@ -1,4 +1,16 @@
 services:
+  redis:
+    image: redis:7-alpine
+    restart: always
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
   db:
     image: pgvector/pgvector:pg16
     container_name: postgres_pgvector_db
@@ -19,12 +31,33 @@ services:
     command: python manage.py runserver 0.0.0.0:8000
     volumes:
       - .:/app
+      - media_data:/app/media
     ports:
       - "8000:8000"
     env_file:
       - .env
     depends_on:
-      - db
+      db:
+        condition: service_started
+      redis:
+        condition: service_healthy
+
+  worker:
+    build: .
+    restart: always
+    command: celery -A config worker --loglevel=info --concurrency=1
+    volumes:
+      - .:/app
+      - media_data:/app/media
+    env_file:
+      - .env
+    depends_on:
+      db:
+        condition: service_started
+      redis:
+        condition: service_healthy
 
 volumes:
   postgres_data:
+  media_data:
+  redis_data:

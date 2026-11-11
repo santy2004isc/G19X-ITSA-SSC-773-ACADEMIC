@@ -123,6 +123,12 @@ class LeyFederal(models.Model):
         VIGENTE = 'VIGENTE', 'Vigente'
         ABROGADA = 'ABROGADA', 'Abrogada'
 
+    class EstadoProcesamiento(models.TextChoices):
+        PENDIENTE = 'PENDIENTE', 'Pendiente'
+        PROCESANDO = 'PROCESANDO', 'Procesando'
+        COMPLETADO = 'COMPLETADO', 'Completado'
+        ERROR = 'ERROR', 'Error'
+
     usuario = models.ForeignKey(
         Usuario, 
         on_delete=models.SET_NULL, 
@@ -152,6 +158,8 @@ class LeyFederal(models.Model):
     hash_documento = models.CharField(
         max_length=64, 
         unique=True, 
+        null=True,
+        blank=True,
         verbose_name='Hash SHA-256 del documento'
     )
     hash_contenido = models.CharField(
@@ -161,6 +169,13 @@ class LeyFederal(models.Model):
         blank=True,
         verbose_name='Hash SHA-256 del texto extraído'
     )
+    archivo_proceso = models.CharField(max_length=500, blank=True, default='')
+    estado_procesamiento = models.CharField(
+        max_length=20,
+        choices=EstadoProcesamiento.choices,
+        default=EstadoProcesamiento.COMPLETADO,
+    )
+    error_procesamiento = models.TextField(blank=True, default='')
     estado = models.CharField(
         max_length=20, 
         choices=Estado.choices, 
@@ -353,6 +368,12 @@ class Mensaje(models.Model):
         db_table = 'mensajes'
         verbose_name = 'Mensaje'
         verbose_name_plural = 'Mensajes'
+        indexes = [
+            models.Index(
+                fields=['conversacion', 'fecha_envio'],
+                name='idx_mensaje_conv_fecha',
+            ),
+        ]
 
     def __str__(self):
         return f"[{self.emisor}] {self.conversacion.id} - {self.fecha_envio.strftime('%Y-%m-%d %H:%M')}"

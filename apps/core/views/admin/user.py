@@ -2,6 +2,7 @@ from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.db.models import Count, Q
+from django.core.paginator import Paginator
 from django.views.decorators.http import require_POST
 from functools import wraps
 from ...models import Usuario
@@ -23,6 +24,7 @@ def admin_required(view_func):
 def admin_dashboard_view(request):
     usuarios = Usuario.objects.exclude(id=request.user.id).filter(is_superuser=False)
     usuarios = usuarios.order_by('-fecha_registro', 'pk')
+    page_obj = Paginator(usuarios, 25).get_page(request.GET.get('page'))
 
     conteos = Usuario.objects.aggregate(
         total=Count('pk'),
@@ -34,7 +36,8 @@ def admin_dashboard_view(request):
         'total_usuarios': conteos['total'],
         'total_gestores': conteos['gestores'],
         'total_registrados': conteos['registrados'],
-        'usuarios': usuarios,
+        'usuarios': page_obj.object_list,
+        'page_obj': page_obj,
     }
     return render(request, 'admin/dashboard.html', context)
 

@@ -1,99 +1,32 @@
-import re
 import logging
 from functools import wraps
+from uuid import uuid4
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.core.exceptions import ValidationError
+from django.core.files.storage import default_storage
 from django.http import JsonResponse
 from django.db import transaction
-from django.db.models import Q
+from django.core.paginator import Paginator
 from django.utils import timezone
 from django.views.decorators.http import require_POST
 
 from ...models import Usuario, LeyFederal, FragmentoNormativo
 from ...forms.gestor_forms import CargarDocumentoForm, EditarPerfilGestorForm, EditarLeyFederalForm
 from ...services.pdf_processor import (
-    procesar_pdf_en_memoria,
     extraer_metadatos_primera_pagina,
-    extraer_articulo_fragmento,
-    generar_vector_embedding,
-    generar_vectores_en_lote,
-    calcular_hash_fragmento
 )
+from ...tasks import procesar_pdf_ley
 
 logger = logging.getLogger(__name__)
 
 
-def _crear_fragmentos_normativos(ley, chunks):
-    fragmentos = []
-    fragmentos_vistos = set()
-    articulo_actual = ""
-    en_transitorios = False
-
-    chunks_a_procesar = []
-    articulos_por_chunk = []
-
-    for chunk in chunks:
-        coincidencias_articulo = []
-        transitorio = re.search(r"^[ \t]*TRANSITORIOS\b", chunk, re.IGNORECASE | re.MULTILINE)
-        encabezado = extraer_articulo_fragmento(chunk)
-        # Si el encabezado y «TRANSITORIOS» están juntos, el artículo anterior
-        # al título no pertenece a los transitorios.
-        if transitorio and encabezado:
-            coincidencias_articulo = list(re.finditer(
-                r"^[ \t]*(?:Artículo|ARTÍCULO)[ \t]+(?:\d+|Primero|Segundo|Tercero|Cuarto|Quinto|"
-                r"Sexto|Séptimo|Octavo|Noveno|Décimo|Undécimo|Duodécimo|Único)\b|"
-                r"^[ \t]*(?:Primero|Segundo|Tercero|Cuarto|Quinto|Sexto|Séptimo|Octavo|"
-                r"Noveno|Décimo|Undécimo|Duodécimo|Único)[ \t]*(?:\.-|\.)",
-                chunk,
-                re.IGNORECASE | re.MULTILINE,
-            ))
-            if coincidencias_articulo:
-                en_transitorios = True
-        elif transitorio:
-            en_transitorios = True
-            if not encabezado:
-                articulo_actual = ""
-
-        articulo_detectado = extraer_articulo_fragmento(chunk)
-        if articulo_detectado:
-            articulo_es_transitorio = en_transitorios
-            if transitorio and coincidencias_articulo and coincidencias_articulo[-1].start() < transitorio.start():
-                articulo_es_transitorio = False
-            articulo_actual = (
-                f"{articulo_detectado} Transitorio"
-                if articulo_es_transitorio
-                else articulo_detectado
-            )
-
-        clave = " ".join(chunk.split())
-        if clave in fragmentos_vistos:
-            continue
-        fragmentos_vistos.add(clave)
-        chunks_a_procesar.append(chunk)
-        articulos_por_chunk.append(articulo_actual)
-
-    if not chunks_a_procesar:
-        return []
-
-    # Vectorización en lote (Batch Encoding) con compatibilidad para mocks en pruebas
-    if hasattr(generar_vector_embedding, 'mock_calls') or hasattr(generar_vector_embedding, 'return_value'):
-        vectores = [generar_vector_embedding(c) for c in chunks_a_procesar]
-    else:
-        vectores = generar_vectores_en_lote(chunks_a_procesar, batch_size=32)
-
-    for chunk, art, vector in zip(chunks_a_procesar, articulos_por_chunk, vectores):
-        fragmentos.append(
-            FragmentoNormativo(
-                ley=ley,
-                contenido_fragmento=chunk,
-                articulo=art,
-                vector_embedding=vector,
-                hash_fragmento=calcular_hash_fragmento(chunk, ley.pk),
-            )
-        )
-    return fragmentos
+def _eliminar_pdf_temporal(archivo_proceso):
+    try:
+        default_storage.delete(archivo_proceso)
+    except Exception:
+        logger.exception("No se pudo eliminar el archivo temporal %s", archivo_proceso)
 
 
 def gestor_required(view_func):
@@ -123,8 +56,6 @@ def previsualizar_documento_view(request):
 
     try:
         archivo.seek(0)
-        procesar_pdf_en_memoria(archivo)
-        archivo.seek(0)
         metadatos = extraer_metadatos_primera_pagina(archivo)
     except ValidationError as error:
         return JsonResponse({"error": str(error)}, status=400)
@@ -141,16 +72,15 @@ def previsualizar_documento_view(request):
 @gestor_required
 def gestor_dashboard_view(request):
     """
-    Dashboard del Gestor con buscador por Nombre o Siglas.
-    Muestra todas las leyes federales cargadas en el sistema, permitiendo
-    su visualización y actualización independientemente de qué usuario las cargó.
+    Dashboard paginado del Gestor con buscador por Nombre o Siglas.
     """
-    leyes = LeyFederal.objects.select_related('usuario', 'usuario_modificacion').all()
-    leyes = leyes.order_by('-fecha_creacion', 'pk')
+    leyes = LeyFederal.objects.select_related('usuario', 'usuario_modificacion').order_by('-fecha_creacion', 'pk')
+    page_obj = Paginator(leyes, 25).get_page(request.GET.get('page'))
     total_fragmentos = FragmentoNormativo.objects.count()
 
     context = {
-        'leyes': leyes,
+        'leyes': page_obj.object_list,
+        'page_obj': page_obj,
         'total_leyes': LeyFederal.objects.count(),
         'total_fragmentos': total_fragmentos,
     }
@@ -174,37 +104,43 @@ def eliminar_ley_view(request, ley_id):
 @gestor_required
 def cargar_documento_view(request):
     """
-    Carga e ingesta de PDF -> LeyFederal y FragmentoNormativo.
+    Guarda la solicitud de ingesta y delega el procesamiento a Celery.
     """
     if request.method == 'POST':
         form = CargarDocumentoForm(request.POST, request.FILES)
         if form.is_valid():
             archivo_pdf = request.FILES['archivo_pdf']
-            
+            archivo_proceso = None
+            ley = form.save(commit=False)
             try:
-                hash_archivo, hash_contenido, chunks = procesar_pdf_en_memoria(archivo_pdf)
-
-                if LeyFederal.objects.filter(
-                    Q(hash_documento=hash_archivo) | Q(hash_contenido=hash_contenido)
-                ).exists():
-                    messages.error(request, "El contenido de este documento ya está cargado; no es necesario volver a procesarlo.")
-                    return render(request, 'gestor/cargar_documento.html', {'form': form})
-
+                archivo_proceso = default_storage.save(
+                    f"pdf_ingesta/{uuid4().hex}.pdf",
+                    archivo_pdf,
+                )
+                ley.usuario = request.user
+                ley.hash_documento = None
+                ley.archivo_proceso = archivo_proceso
+                ley.estado_procesamiento = LeyFederal.EstadoProcesamiento.PENDIENTE
+                ley.error_procesamiento = ''
                 with transaction.atomic():
-                    ley = form.save(commit=False)
-                    ley.usuario = request.user
-                    ley.hash_documento = hash_archivo
-                    ley.hash_contenido = hash_contenido
                     ley.save()
-
-                    fragmentos_objetos = _crear_fragmentos_normativos(ley, chunks)
-                    FragmentoNormativo.objects.bulk_create(fragmentos_objetos)
-
-                messages.success(request, f"La norma '{ley.nombre}' fue procesada e indexada exitosamente con {len(fragmentos_objetos)} fragmentos únicos.")
+                procesar_pdf_ley.delay(ley.pk)
+                messages.success(
+                    request,
+                    f"La norma '{ley.nombre}' se guardó y su procesamiento continuará en segundo plano.",
+                )
                 return redirect('gestor_dashboard')
-
-            except Exception as e:
-                messages.error(request, f"Ocurrió un error al procesar el archivo: {str(e)}")
+            except Exception:
+                logger.exception("No se pudo encolar el procesamiento del PDF %r", archivo_pdf.name)
+                if ley.pk:
+                    LeyFederal.objects.filter(pk=ley.pk).update(
+                        estado_procesamiento=LeyFederal.EstadoProcesamiento.ERROR,
+                        error_procesamiento="No fue posible iniciar el procesamiento en segundo plano.",
+                        archivo_proceso='',
+                    )
+                if archivo_proceso:
+                    _eliminar_pdf_temporal(archivo_proceso)
+                messages.error(request, "No fue posible iniciar el procesamiento del PDF. Inténtalo nuevamente.")
     else:
         form = CargarDocumentoForm()
 
@@ -223,53 +159,44 @@ def editar_ley_view(request, ley_id):
         form = EditarLeyFederalForm(request.POST, request.FILES, instance=ley)
         if form.is_valid():
             archivo_pdf = request.FILES.get('archivo_pdf')
-            
             try:
+                archivo_proceso = None
+                if archivo_pdf:
+                    archivo_proceso = default_storage.save(
+                        f"pdf_ingesta/{uuid4().hex}.pdf",
+                        archivo_pdf,
+                    )
+
                 with transaction.atomic():
                     ley_actualizada = form.save(commit=False)
                     ley_actualizada.usuario_modificacion = request.user
                     ley_actualizada.fecha_modificacion = timezone.now()
-                    
-                    # Si se adjuntó un nuevo PDF, se reemplazan los fragmentos y vectores
-                    if archivo_pdf:
-                        hash_archivo, hash_contenido, chunks = procesar_pdf_en_memoria(archivo_pdf)
+                    if archivo_proceso:
+                        ley_actualizada.archivo_proceso = archivo_proceso
+                        ley_actualizada.estado_procesamiento = LeyFederal.EstadoProcesamiento.PENDIENTE
+                        ley_actualizada.error_procesamiento = ''
+                    ley_actualizada.save()
 
-                        # Validar duplicados exceptuando la ley actual
-                        if LeyFederal.objects.filter(
-                            Q(hash_documento=hash_archivo) | Q(hash_contenido=hash_contenido)
-                        ).exclude(id=ley.id).exists():
-                            messages.error(request, "El contenido del PDF proporcionado ya está cargado en otra ley registrada.")
-                            return render(request, 'gestor/editar_ley.html', {'form': form, 'ley': ley})
-
-                        mismo_contenido = (
-                            hash_contenido == ley.hash_contenido
-                            or hash_archivo == ley.hash_documento
-                        )
-                        ley_actualizada.hash_documento = hash_archivo
-                        ley_actualizada.hash_contenido = hash_contenido
-                        ley_actualizada.save()
-
-                        if mismo_contenido:
-                            messages.success(
-                                request,
-                                f"Los datos de la ley '{ley.nombre}' fueron actualizados; el contenido no cambió y se conservaron sus fragmentos vectoriales."
-                            )
-                        else:
-                            # Eliminar vectores/fragmentos anteriores e insertar los nuevos
-                            FragmentoNormativo.objects.filter(ley=ley).delete()
-
-                            fragmentos_objetos = _crear_fragmentos_normativos(ley, chunks)
-                            FragmentoNormativo.objects.bulk_create(fragmentos_objetos)
-                            messages.success(request, f"La ley '{ley.nombre}' y sus fragmentos vectoriales ({len(fragmentos_objetos)} fragmentos únicos) fueron actualizados con éxito.")
-                    else:
-                        ley_actualizada.save()
-                        messages.success(request, f"Los datos de la ley '{ley.nombre}' fueron actualizados correctamente.")
-
+                if archivo_proceso:
+                    procesar_pdf_ley.delay(ley_actualizada.pk)
+                    messages.success(
+                        request,
+                        f"La ley '{ley.nombre}' se actualizó y el PDF se reprocesará en segundo plano.",
+                    )
+                else:
+                    messages.success(request, f"Los datos de la ley '{ley.nombre}' fueron actualizados correctamente.")
                 return redirect('gestor_dashboard')
-
-            except Exception as e:
+            except Exception:
                 logger.exception("Error al actualizar la ley %s", ley.pk)
-                messages.error(request, f"Ocurrió un error al actualizar la ley: {str(e)}")
+                if archivo_proceso:
+                    LeyFederal.objects.filter(pk=ley.pk).update(
+                        estado_procesamiento=LeyFederal.EstadoProcesamiento.ERROR,
+                        error_procesamiento="No fue posible iniciar el procesamiento en segundo plano.",
+                        archivo_proceso='',
+                    )
+                    _eliminar_pdf_temporal(archivo_proceso)
+                messages.error(request, "Ocurrió un error al actualizar la ley. Revisa los datos e inténtalo nuevamente.")
+                return redirect('gestor_dashboard')
     else:
         form = EditarLeyFederalForm(instance=ley)
 
