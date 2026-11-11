@@ -478,6 +478,59 @@ class ControlDeRolesTest(TestCase):
         self.assertEqual(fallos.context['page_obj'].paginator.count, 26)
         self.assertEqual(len(fallos.context['fallos']), 1)
 
+        usuarios_tamano = self.client.get(reverse('admin_dashboard') + '?page=2&page_size=10')
+        self.client.force_login(self.usuario_gestor)
+        leyes_tamano = self.client.get(reverse('gestor_dashboard') + '?page=2&page_size=10')
+        self.client.force_login(self.usuario_admin)
+        fallos_tamano = self.client.get(
+            reverse('admin_fallos_api') + '?page=2&page_size=10&proveedor=GROQ'
+        )
+
+        for respuesta in (usuarios_tamano, leyes_tamano, fallos_tamano):
+            self.assertEqual(respuesta.context['page_obj'].paginator.per_page, 10)
+            self.assertEqual(len(respuesta.context['page_obj'].object_list), 10)
+            self.assertContains(respuesta, 'Filas por página')
+            self.assertContains(respuesta, 'page_size=10')
+
+    def test_busqueda_de_usuarios_y_leyes_filtra_todos_los_registros_antes_de_paginar(self):
+        self.client.force_login(self.usuario_admin)
+        usuarios = [
+            Usuario(
+                correo_electronico=f'buscar-{indice}@test.com',
+                nombre='Usuario de prueba',
+                apellido=f'{indice}',
+            )
+            for indice in range(30)
+        ]
+        usuarios[0].nombre = 'Coincidencia remota'
+        Usuario.objects.bulk_create(usuarios)
+        LeyFederal.objects.bulk_create([
+            LeyFederal(
+                nombre='Ley de prueba remota' if indice == 0 else f'Ley de prueba {indice}',
+                siglas='LPR' if indice == 0 else f'LP{indice}',
+                fecha_publicacion=timezone.now().date(),
+                hash_documento=f'{indice:064}',
+            )
+            for indice in range(30)
+        ])
+
+        respuesta_usuarios = self.client.get(
+            reverse('admin_dashboard'),
+            {'q': 'Coincidencia remota'},
+        )
+        self.client.force_login(self.usuario_gestor)
+        respuesta_leyes = self.client.get(
+            reverse('gestor_dashboard'),
+            {'q': 'LPR'},
+        )
+
+        self.assertEqual(respuesta_usuarios.context['page_obj'].paginator.count, 1)
+        self.assertEqual(respuesta_usuarios.context['usuarios'][0].nombre, 'Coincidencia remota')
+        self.assertContains(respuesta_usuarios, 'value="Coincidencia remota"')
+        self.assertEqual(respuesta_leyes.context['page_obj'].paginator.count, 1)
+        self.assertEqual(respuesta_leyes.context['leyes'][0].nombre, 'Ley de prueba remota')
+        self.assertContains(respuesta_leyes, 'value="LPR"')
+
     def test_dashboard_muestra_mensaje_visible_cuando_falla_la_indexacion(self):
         self.client.force_login(self.usuario_gestor)
         LeyFederal.objects.create(

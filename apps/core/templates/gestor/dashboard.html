@@ -46,8 +46,19 @@
             </div>
         </div>
 
+        <form method="get" class="flex flex-wrap items-end gap-3" role="search">
+            {% if request.GET.seguimiento %}<input type="hidden" name="seguimiento" value="{{ request.GET.seguimiento }}">{% endif %}
+            <input type="hidden" name="page_size" value="{{ page_size }}">
+            <label for="buscarLeyes" class="flex min-w-56 flex-1 flex-col gap-1 text-sm text-slate-600">
+                Buscar por nombre oficial o siglas
+                <input id="buscarLeyes" type="search" name="q" value="{{ busqueda }}" placeholder="Escribe el nombre o siglas..." class="rounded-lg border border-slate-300 bg-white px-3 py-2 text-slate-800">
+            </label>
+            <button type="submit" class="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">Buscar</button>
+            {% if busqueda %}<a href="?page_size={{ page_size }}{% if request.GET.seguimiento %}&amp;seguimiento={{ request.GET.seguimiento|urlencode }}{% endif %}" class="px-2 py-2 text-sm text-slate-600 hover:text-blue-600">Limpiar</a>{% endif %}
+        </form>
+
         <!-- Tabla de Documentos -->
-        <div class="table-scroll bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden" role="region" aria-label="Tabla de leyes; desliza horizontalmente para ver todas las columnas" tabindex="0" data-enhanced-table data-search-placeholder="Buscar por nombre o siglas...">
+        <div class="table-scroll bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden" role="region" aria-label="Tabla de leyes; desliza horizontalmente para ver todas las columnas" tabindex="0" data-enhanced-table data-server-pagination="true" data-disable-search="true">
             <p class="table-scroll-hint">Desliza horizontalmente para consultar todas las columnas.</p>
             <table class="w-full text-left text-sm text-slate-600">
                 <thead class="bg-slate-50 text-slate-700 uppercase text-xs border-b border-slate-200">
@@ -149,16 +160,24 @@
                 </tbody>
             </table>
         </div>
-        {% if page_obj.paginator.num_pages > 1 %}
-        <nav class="flex items-center justify-between rounded-xl border border-slate-200 bg-white px-5 py-4 text-sm" aria-label="Paginación de leyes">
+        <nav class="flex flex-wrap items-center justify-between gap-4 rounded-xl border border-slate-200 bg-white px-5 py-4 text-sm" aria-label="Paginación de leyes">
             <span class="text-slate-500">Mostrando {{ page_obj.start_index }}–{{ page_obj.end_index }} de {{ page_obj.paginator.count }}</span>
+            <form method="get" class="flex items-center gap-2">
+                {% if request.GET.seguimiento %}<input type="hidden" name="seguimiento" value="{{ request.GET.seguimiento }}">{% endif %}
+                {% if busqueda %}<input type="hidden" name="q" value="{{ busqueda }}">{% endif %}
+                <label for="leyesPageSize" class="text-slate-600">Filas por página</label>
+                <select id="leyesPageSize" name="page_size" onchange="this.form.submit()" class="rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-slate-700">
+                    {% for option in page_size_options %}<option value="{{ option }}" {% if option == page_size %}selected{% endif %}>{{ option }}</option>{% endfor %}
+                </select>
+            </form>
+            {% if page_obj.paginator.num_pages > 1 %}
             <div class="flex items-center gap-3">
-                {% if page_obj.has_previous %}<a class="text-blue-600 hover:underline" href="?page={{ page_obj.previous_page_number }}">Anterior</a>{% endif %}
+                {% if page_obj.has_previous %}<a class="text-blue-600 hover:underline" href="?page={{ page_obj.previous_page_number }}&amp;page_size={{ page_size }}{% if busqueda %}&amp;q={{ busqueda|urlencode }}{% endif %}{% if request.GET.seguimiento %}&amp;seguimiento={{ request.GET.seguimiento|urlencode }}{% endif %}">Anterior</a>{% endif %}
                 <span class="text-slate-600">Página {{ page_obj.number }} de {{ page_obj.paginator.num_pages }}</span>
-                {% if page_obj.has_next %}<a class="text-blue-600 hover:underline" href="?page={{ page_obj.next_page_number }}">Siguiente</a>{% endif %}
+                {% if page_obj.has_next %}<a class="text-blue-600 hover:underline" href="?page={{ page_obj.next_page_number }}&amp;page_size={{ page_size }}{% if busqueda %}&amp;q={{ busqueda|urlencode }}{% endif %}{% if request.GET.seguimiento %}&amp;seguimiento={{ request.GET.seguimiento|urlencode }}{% endif %}">Siguiente</a>{% endif %}
             </div>
+            {% endif %}
         </nav>
-        {% endif %}
     </main>
 </div>
 <script>

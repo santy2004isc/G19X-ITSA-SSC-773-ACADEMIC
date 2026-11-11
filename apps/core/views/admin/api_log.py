@@ -3,6 +3,7 @@ from django.contrib.auth.decorators import login_required
 from django.core.paginator import Paginator
 from ...models import RegistroFalloAPI
 from .user import admin_required
+from ..pagination import PAGE_SIZE_OPTIONS, get_page_size
 
 
 @login_required
@@ -18,11 +19,14 @@ def registros_fallos_api_view(request):
     if proveedor_filtro in ['GROQ', 'GEMINI']:
         fallos = fallos.filter(proveedor_solicitado=proveedor_filtro)
 
-    page_obj = Paginator(fallos, 25).get_page(request.GET.get('page'))
+    page_size = get_page_size(request)
+    page_obj = Paginator(fallos, page_size).get_page(request.GET.get('page'))
     context = {
         'fallos': page_obj.object_list,
         'page_obj': page_obj,
         'proveedor_filtro': proveedor_filtro,
         'total_fallos': page_obj.paginator.count,
+        'page_size': page_size,
+        'page_size_options': PAGE_SIZE_OPTIONS,
     }
     return render(request, 'admin/fallos_api.html', context)

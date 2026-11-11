@@ -7,6 +7,7 @@ from django.views.decorators.http import require_POST
 from functools import wraps
 from ...models import Usuario
 from ...forms.admin_forms import CrearUsuarioAdminForm, EditarUsuarioAdminForm
+from ..pagination import PAGE_SIZE_OPTIONS, get_page_size
 
 
 def admin_required(view_func):
@@ -23,8 +24,16 @@ def admin_required(view_func):
 @admin_required
 def admin_dashboard_view(request):
     usuarios = Usuario.objects.exclude(id=request.user.id).filter(is_superuser=False)
+    busqueda = request.GET.get('q', '').strip()
+    if busqueda:
+        usuarios = usuarios.filter(
+            Q(nombre__icontains=busqueda)
+            | Q(apellido__icontains=busqueda)
+            | Q(correo_electronico__icontains=busqueda)
+        )
     usuarios = usuarios.order_by('-fecha_registro', 'pk')
-    page_obj = Paginator(usuarios, 25).get_page(request.GET.get('page'))
+    page_size = get_page_size(request)
+    page_obj = Paginator(usuarios, page_size).get_page(request.GET.get('page'))
 
     conteos = Usuario.objects.aggregate(
         total=Count('pk'),
@@ -38,6 +47,9 @@ def admin_dashboard_view(request):
         'total_registrados': conteos['registrados'],
         'usuarios': page_obj.object_list,
         'page_obj': page_obj,
+        'page_size': page_size,
+        'page_size_options': PAGE_SIZE_OPTIONS,
+        'busqueda': busqueda,
     }
     return render(request, 'admin/dashboard.html', context)
 

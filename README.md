@@ -11,7 +11,7 @@ Plataforma web Django para consultar leyes federales mexicanas mediante búsqued
 - Embeddings locales de 768 dimensiones con `sentence-transformers`; recuperación híbrida mediante `pgvector` y búsqueda de texto completo en español de PostgreSQL.
 - Deduplicación por hash del archivo y del texto, fragmentación con identificación de artículos y disposiciones transitorias.
 - Chat con historial, clasificación de saludos/cortesías, cuota diaria para usuarios registrados, fallback entre Groq y Gemini y respuestas transmitidas en tiempo real mediante SSE.
-- Listados administrativos paginados, controles de método/CSRF en acciones que cambian datos y soporte de tema claro/oscuro.
+- Listados administrativos con una sola paginación del servidor (10, 20, 25, 30, 40 o 50 filas por página), controles de método/CSRF en acciones que cambian datos y soporte de tema claro/oscuro.
 
 ## Tecnologías
 
@@ -99,7 +99,7 @@ Los paneles propios están limitados por rol:
 
 ## Pruebas
 
-La suite actual tiene 65 pruebas en `apps/core/tests.py`. Cubre el registro de modelos y las vistas/hash de contraseñas en Django Admin, autenticación, normalización de correos, redirecciones seguras, CSRF y permisos, paginación, carga y reproceso asíncronos con seguimiento de estados de indexación, extracción/fragmentación de PDF, chat con streaming SSE, cuotas, fallback y búsqueda híbrida.
+La suite actual tiene 66 pruebas en `apps/core/tests.py`. Cubre el registro de modelos y las vistas/hash de contraseñas en Django Admin, autenticación, normalización de correos, redirecciones seguras, CSRF y permisos, paginación y búsqueda de usuarios/leyes en el servidor, carga y reproceso asíncronos con seguimiento de estados de indexación, extracción/fragmentación de PDF, chat con streaming SSE, cuotas, fallback y búsqueda híbrida.
 
 Con los servicios de Docker iniciados, ejecuta:
 

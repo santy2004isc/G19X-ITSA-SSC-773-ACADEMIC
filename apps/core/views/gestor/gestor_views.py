@@ -20,6 +20,7 @@ from ...services.pdf_processor import (
     extraer_metadatos_primera_pagina,
 )
 from ...tasks import procesar_pdf_ley
+from ..pagination import PAGE_SIZE_OPTIONS, get_page_size
 
 logger = logging.getLogger(__name__)
 
@@ -74,10 +75,14 @@ def previsualizar_documento_view(request):
 @gestor_required
 def gestor_dashboard_view(request):
     """
-    Dashboard paginado del Gestor con buscador por Nombre o Siglas.
+    Dashboard paginado del Gestor con búsqueda por nombre oficial o siglas.
     """
     leyes = LeyFederal.objects.select_related('usuario', 'usuario_modificacion').order_by('-fecha_creacion', 'pk')
-    page_obj = Paginator(leyes, 25).get_page(request.GET.get('page'))
+    busqueda = request.GET.get('q', '').strip()
+    if busqueda:
+        leyes = leyes.filter(Q(nombre__icontains=busqueda) | Q(siglas__icontains=busqueda))
+    page_size = get_page_size(request)
+    page_obj = Paginator(leyes, page_size).get_page(request.GET.get('page'))
     total_fragmentos = FragmentoNormativo.objects.count()
 
     context = {
@@ -85,6 +90,9 @@ def gestor_dashboard_view(request):
         'page_obj': page_obj,
         'total_leyes': LeyFederal.objects.count(),
         'total_fragmentos': total_fragmentos,
+        'page_size': page_size,
+        'page_size_options': PAGE_SIZE_OPTIONS,
+        'busqueda': busqueda,
     }
     return render(request, 'gestor/dashboard.html', context)
 
