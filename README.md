@@ -222,6 +222,11 @@ GEMINI_MODEL=gemini-3.5-flash
 GROQ_MODEL=openai/gpt-oss-120b
 ```
 
+En producción, configura `DEBUG=False`, define una `SECRET_KEY` única y segura
+(no uses una clave con el prefijo `django-insecure-`) y publica el sitio detrás
+de HTTPS. Con `DEBUG=False`, Django rechaza una clave ausente o de desarrollo y
+activa cookies seguras y HSTS; HSTS requiere que el sitio sea accesible por HTTPS.
+
 ---
 
 ## Despliegue con Docker

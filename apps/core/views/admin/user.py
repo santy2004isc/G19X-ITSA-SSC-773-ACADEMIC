@@ -2,6 +2,7 @@ from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.db.models import Count, Q
+from django.views.decorators.http import require_POST
 from functools import wraps
 from ...models import Usuario
 from ...forms.admin_forms import CrearUsuarioAdminForm, EditarUsuarioAdminForm
@@ -79,6 +80,7 @@ def editar_usuario_view(request, user_id):
 
 @login_required
 @admin_required
+@require_POST
 def cambiar_estado_usuario_view(request, user_id):
     usuario = get_object_or_404(Usuario, id=user_id, is_superuser=False)
     if usuario == request.user:
@@ -93,6 +95,7 @@ def cambiar_estado_usuario_view(request, user_id):
 
 @login_required
 @admin_required
+@require_POST
 def eliminar_usuario_view(request, user_id):
     usuario = get_object_or_404(Usuario, id=user_id, is_superuser=False)
     if usuario == request.user:

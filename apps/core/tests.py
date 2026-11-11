@@ -133,6 +133,28 @@ class AutenticacionMiddlewareTest(TestCase):
         response_registro = self.client.get(reverse('registro'))
         self.assertEqual(response_registro.status_code, 200)
 
+    def test_login_no_redirige_a_un_host_externo(self):
+        response = self.client.post(
+            f"{reverse('login')}?next=https://sitio-malicioso.example",
+            {
+                'correo_electronico': self.user.correo_electronico,
+                'password': 'Password123!',
+            },
+        )
+
+        self.assertRedirects(response, reverse('router'), fetch_redirect_response=False)
+
+    def test_login_conserva_una_ruta_local_como_destino(self):
+        response = self.client.post(
+            f"{reverse('login')}?next=/destino-seguro/",
+            {
+                'correo_electronico': self.user.correo_electronico,
+                'password': 'Password123!',
+            },
+        )
+
+        self.assertRedirects(response, '/destino-seguro/', fetch_redirect_response=False)
+
     def test_usuario_autenticado_accede_a_sus_rutas(self):
         self.client.force_login(self.user)
         response = self.client.get(reverse('chat_interfaz'))
@@ -195,6 +217,49 @@ class ControlDeRolesTest(TestCase):
         self.client.force_login(self.usuario_gestor)
         response = self.client.get(reverse('gestor_dashboard'))
         self.assertEqual(response.status_code, 200)
+
+    def test_cambiar_estado_y_eliminar_usuario_requieren_post(self):
+        self.client.force_login(self.usuario_admin)
+
+        response_estado = self.client.get(
+            reverse('admin_cambiar_estado', args=[self.usuario_gestor.id])
+        )
+        response_eliminar = self.client.get(
+            reverse('admin_eliminar_usuario', args=[self.usuario_gestor.id])
+        )
+
+        self.assertEqual(response_estado.status_code, 405)
+        self.assertEqual(response_eliminar.status_code, 405)
+        self.usuario_gestor.refresh_from_db()
+        self.assertTrue(self.usuario_gestor.activo)
+
+    def test_cambiar_estado_y_eliminar_usuario_aceptan_post(self):
+        self.client.force_login(self.usuario_admin)
+
+        response_estado = self.client.post(
+            reverse('admin_cambiar_estado', args=[self.usuario_gestor.id])
+        )
+        self.assertRedirects(response_estado, reverse('admin_dashboard'), fetch_redirect_response=False)
+        self.usuario_gestor.refresh_from_db()
+        self.assertFalse(self.usuario_gestor.activo)
+
+        response_eliminar = self.client.post(
+            reverse('admin_eliminar_usuario', args=[self.usuario_gestor.id])
+        )
+        self.assertRedirects(response_eliminar, reverse('admin_dashboard'), fetch_redirect_response=False)
+        self.assertFalse(Usuario.objects.filter(pk=self.usuario_gestor.pk).exists())
+
+    def test_post_de_acciones_de_usuario_requiere_token_csrf(self):
+        client = Client(enforce_csrf_checks=True)
+        client.force_login(self.usuario_admin)
+
+        response = client.post(
+            reverse('admin_cambiar_estado', args=[self.usuario_gestor.id])
+        )
+
+        self.assertEqual(response.status_code, 403)
+        self.usuario_gestor.refresh_from_db()
+        self.assertTrue(self.usuario_gestor.activo)
 
     @patch('apps.core.views.gestor.gestor_views.generar_vector_embedding')
     @patch('apps.core.views.gestor.gestor_views.procesar_pdf_en_memoria')
