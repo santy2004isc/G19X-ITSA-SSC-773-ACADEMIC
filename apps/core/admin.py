@@ -4,6 +4,7 @@ from django.contrib.auth.admin import UserAdmin
 from django.contrib.auth.forms import ReadOnlyPasswordHashField
 
 from .forms.password_validators import PASSWORD_POLICY_VALIDATOR
+from .forms.mixins import NormalizarCorreoElectronicoMixin
 from .models import (
     Conversacion,
     FragmentoNormativo,
@@ -14,7 +15,7 @@ from .models import (
 )
 
 
-class UsuarioAdminCreationForm(forms.ModelForm):
+class UsuarioAdminCreationForm(NormalizarCorreoElectronicoMixin, forms.ModelForm):
     password1 = forms.CharField(
         label='Contraseña',
         min_length=8,
@@ -55,7 +56,7 @@ class UsuarioAdminCreationForm(forms.ModelForm):
         return usuario
 
 
-class UsuarioAdminChangeForm(forms.ModelForm):
+class UsuarioAdminChangeForm(NormalizarCorreoElectronicoMixin, forms.ModelForm):
     password = ReadOnlyPasswordHashField(label='Contraseña')
 
     class Meta:

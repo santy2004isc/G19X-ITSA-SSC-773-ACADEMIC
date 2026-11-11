@@ -2,6 +2,7 @@ from django import forms
 from django.core.exceptions import ValidationError
 from django.core.validators import RegexValidator
 from ..models import Usuario
+from .mixins import NormalizarCorreoElectronicoMixin
 from .password_validators import (
     PASSWORD_POLICY_MESSAGE,
     PASSWORD_POLICY_PATTERN,
@@ -15,7 +16,7 @@ SOLO_LETRAS_VALIDATOR = RegexValidator(
 )
 
 
-class CrearUsuarioAdminForm(forms.ModelForm):
+class CrearUsuarioAdminForm(NormalizarCorreoElectronicoMixin, forms.ModelForm):
     """
     Formulario para la creación de usuarios con confirmación de contraseña.
     """
@@ -69,7 +70,7 @@ class CrearUsuarioAdminForm(forms.ModelForm):
             user.save()
         return user
 
-class EditarUsuarioAdminForm(forms.ModelForm):
+class EditarUsuarioAdminForm(NormalizarCorreoElectronicoMixin, forms.ModelForm):
     """
     Formulario para editar información de usuario y/o cambiar su contraseña en la misma vista.
     """

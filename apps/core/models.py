@@ -19,7 +19,7 @@ class UsuarioManager(BaseUserManager):
     def create_user(self, correo_electronico, password=None, **extra_fields):
         if not correo_electronico:
             raise ValueError('El correo electrónico es obligatorio.')
-        correo_electronico = self.normalize_email(correo_electronico)
+        correo_electronico = correo_electronico.strip().lower()
         user = self.model(correo_electronico=correo_electronico, **extra_fields)
         user.set_password(password)
         user.save(using=self._db)
@@ -94,6 +94,15 @@ class Usuario(AbstractBaseUser, PermissionsMixin):
 
     def __str__(self):
         return f"{self.nombre} {self.apellido} ({self.correo_electronico})"
+
+    def save(self, *args, **kwargs):
+        correo_original = self.correo_electronico
+        if correo_original:
+            self.correo_electronico = correo_original.strip().lower()
+        update_fields = kwargs.get('update_fields')
+        if update_fields is not None and self.correo_electronico != correo_original:
+            kwargs['update_fields'] = set(update_fields) | {'correo_electronico'}
+        super().save(*args, **kwargs)
 
     def verificar_y_reiniciar_cuota_diaria(self):
         """

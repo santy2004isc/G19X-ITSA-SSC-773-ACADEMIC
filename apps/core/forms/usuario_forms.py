@@ -2,6 +2,7 @@ from django import forms
 from django.core.exceptions import ValidationError
 from django.core.validators import RegexValidator
 from ..models import Usuario
+from .mixins import NormalizarCorreoElectronicoMixin
 from .password_validators import (
     PASSWORD_POLICY_MESSAGE,
     PASSWORD_POLICY_PATTERN,
@@ -15,7 +16,7 @@ SOLO_LETRAS_VALIDATOR = RegexValidator(
 )
 
 
-class EditarPerfilUsuarioForm(forms.ModelForm):
+class EditarPerfilUsuarioForm(NormalizarCorreoElectronicoMixin, forms.ModelForm):
     """
     Formulario de actualización de datos de perfil para el Usuario Registrado.
     """

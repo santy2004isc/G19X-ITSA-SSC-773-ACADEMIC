@@ -11,8 +11,12 @@ from django.core.files.uploadedfile import SimpleUploadedFile
 from pypdf import PdfWriter
 
 from .models import Usuario, LeyFederal, FragmentoNormativo, Conversacion, Mensaje, RegistroFalloAPI
-from .forms.auth_forms import RegistroForm
-from .forms.gestor_forms import CargarDocumentoForm
+from .admin import UsuarioAdminCreationForm
+from .forms.auth_forms import LoginForm, RegistroForm
+from .forms.admin_forms import CrearUsuarioAdminForm, EditarUsuarioAdminForm
+from .forms.gestor_forms import CargarDocumentoForm, EditarPerfilGestorForm
+from .forms.profile_forms import EditarPerfilForm
+from .forms.usuario_forms import EditarPerfilUsuarioForm
 from .services.pdf_processor import (
     _fragmentar_texto_estructurado,
     extraer_articulo_fragmento,
@@ -116,6 +120,26 @@ class FrontendFormValidationTest(TestCase):
         usuario = form.save()
         self.assertEqual(usuario.correo_electronico, 'ana.ejemplo@example.com')
 
+    def test_todos_los_formularios_de_usuario_normalizan_correo(self):
+        formularios = (
+            LoginForm,
+            RegistroForm,
+            CrearUsuarioAdminForm,
+            EditarUsuarioAdminForm,
+            EditarPerfilUsuarioForm,
+            EditarPerfilForm,
+            EditarPerfilGestorForm,
+            UsuarioAdminCreationForm,
+        )
+        for formulario in formularios:
+            with self.subTest(formulario=formulario.__name__):
+                instancia = formulario(data={
+                    'correo_electronico': '  Ana.Ejemplo@Example.COM  ',
+                })
+                instancia.full_clean()
+
+                self.assertEqual(instancia.cleaned_data['correo_electronico'], 'ana.ejemplo@example.com')
+
     def test_nombre_de_ley_acepta_hasta_500_caracteres(self):
         datos = {
             'nombre': 'L' * 500,
@@ -148,6 +172,30 @@ class UsuarioModelTest(TestCase):
             rol=Usuario.Rol.REGISTRADO,
             cuota_diaria_mensajes=50
         )
+
+    def test_guardar_usuario_directamente_normaliza_correo(self):
+        usuario = Usuario(
+            correo_electronico='  MiCorreo@Example.COM  ',
+            nombre='Correo',
+            apellido='Normalizado',
+        )
+        usuario.set_password('Password123!')
+
+        usuario.save()
+
+        self.assertEqual(usuario.correo_electronico, 'micorreo@example.com')
+        usuario.refresh_from_db()
+        self.assertEqual(usuario.correo_electronico, 'micorreo@example.com')
+
+    def test_manager_normaliza_correo_al_crear_usuario(self):
+        usuario = Usuario.objects.create_user(
+            correo_electronico='  OtroCorreo@Example.COM  ',
+            password='Password123!',
+            nombre='Correo',
+            apellido='Creado',
+        )
+
+        self.assertEqual(usuario.correo_electronico, 'otrocorreo@example.com')
 
     def test_creacion_usuario_defecto(self):
         self.assertEqual(self.usuario.rol, Usuario.Rol.REGISTRADO)

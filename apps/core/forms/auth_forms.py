@@ -3,6 +3,7 @@ from django.contrib.auth import authenticate
 from django.core.exceptions import ValidationError
 from django.core.validators import RegexValidator
 from ..models import Usuario
+from .mixins import NormalizarCorreoElectronicoMixin
 from .password_validators import (
     PASSWORD_POLICY_MESSAGE,
     PASSWORD_POLICY_PATTERN,
@@ -18,7 +19,7 @@ SOLO_LETRAS_VALIDATOR = RegexValidator(
 )
 
 
-class LoginForm(forms.Form):
+class LoginForm(NormalizarCorreoElectronicoMixin, forms.Form):
     """
     Formulario de Inicio de Sesión.
     """
@@ -70,7 +71,7 @@ class LoginForm(forms.Form):
         return cleaned_data
 
 
-class RegistroForm(forms.ModelForm):
+class RegistroForm(NormalizarCorreoElectronicoMixin, forms.ModelForm):
     """
     Formulario de Registro Público con validaciones estrictas.
     """
@@ -122,9 +123,6 @@ class RegistroForm(forms.ModelForm):
                 'placeholder': 'correo@ejemplo.com'
             }),
         }
-
-    def clean_correo_electronico(self):
-        return self.cleaned_data['correo_electronico'].strip().lower()
 
     def clean_password_confirmacion(self):
         password = self.cleaned_data.get("password")

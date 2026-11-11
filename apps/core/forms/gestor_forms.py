@@ -2,6 +2,7 @@ from django import forms
 from django.core.exceptions import ValidationError
 from django.core.validators import RegexValidator
 from ..models import Usuario, LeyFederal
+from .mixins import NormalizarCorreoElectronicoMixin
 from .password_validators import (
     PASSWORD_POLICY_MESSAGE,
     PASSWORD_POLICY_PATTERN,
@@ -124,7 +125,7 @@ class EditarLeyFederalForm(forms.ModelForm):
         return cleaned_data
 
 
-class EditarPerfilGestorForm(forms.ModelForm):
+class EditarPerfilGestorForm(NormalizarCorreoElectronicoMixin, forms.ModelForm):
     """
     Formulario de perfil para el Gestor.
     """
