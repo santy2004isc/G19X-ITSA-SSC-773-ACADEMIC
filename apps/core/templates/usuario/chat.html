@@ -88,7 +88,7 @@
 </div>
 
 {% load static %}
-<script src="{% static 'js/chat_engine.js' %}"></script>
+<script src="{% static 'js/chat_engine.js' %}?v=2"></script>
 <script>
     const chatContainer = document.getElementById('chatContainer');
     const chatForm = document.getElementById('chatForm');
@@ -157,6 +157,11 @@
         pendingMessage.dataset.pendingMessage = 'true';
         pendingMessage.innerHTML = userMessageHtml(message, new Date().toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'}));
         chatContainer.appendChild(pendingMessage);
+        const streamingMessage = document.createElement('div');
+        streamingMessage.className = 'flex justify-start';
+        streamingMessage.innerHTML = '<div class="w-full max-w-2xl rounded-2xl rounded-tl-none border border-slate-200 bg-white p-4 text-sm text-slate-800 shadow-sm"><div class="markdown-content whitespace-pre-wrap break-words"></div></div>';
+        const streamingContent = streamingMessage.querySelector('.markdown-content');
+        chatContainer.appendChild(streamingMessage);
         chatInput.value = '';
         chatInput.disabled = true;
         sendButton.disabled = true;
@@ -171,34 +176,50 @@
                 headers: {'Content-Type': 'application/json', 'X-CSRFToken': csrfToken},
                 body: JSON.stringify({
                     mensaje: message,
-                    conversacion_id: conversationIdInput.value || null
+                    conversacion_id: conversationIdInput.value || null,
+                    stream: true
                 })
             });
-            let data;
-            try {
-                data = await response.json();
-            } catch (_) {
-                throw new Error(response.status === 403
+            if (!response.ok) {
+                let errorData = {};
+                try { errorData = await response.json(); } catch (_) {}
+                throw new Error(errorData.error || (response.status === 403
                     ? 'La sesión expiró. Recarga la página e inténtalo de nuevo.'
-                    : 'No se pudo interpretar la respuesta del servidor.');
+                    : 'No se pudo iniciar la transmisión de la respuesta.'));
             }
-            if (!response.ok || !data.ok || !data.respuesta) {
-                throw new Error(data.error || 'No se pudo procesar la consulta.');
+            let respuestaCompleta = '';
+            let data = null;
+            await ChatEngine.consumirEventosSSE(response, (tipo, evento) => {
+                if (tipo === 'token') {
+                    respuestaCompleta += evento.text || '';
+                    streamingContent.textContent = respuestaCompleta;
+                } else if (tipo === 'reset') {
+                    respuestaCompleta = '';
+                    streamingContent.textContent = '';
+                } else if (tipo === 'error') {
+                    throw new Error(evento.error || 'Ocurrió un error al procesar la consulta.');
+                } else if (tipo === 'complete') {
+                    data = evento;
+                }
+                chatContainer.scrollTop = chatContainer.scrollHeight;
+            });
+            if (!data || !data.ok || !data.respuesta) {
+                throw new Error('La transmisión terminó sin una respuesta completa.');
             }
 
-            if (!conversationIdInput.value) {
-                window.location.assign(data.conversacion_url);
-                return;
-            }
+            conversationIdInput.value = data.conversacion_id;
+            window.history.replaceState(null, '', data.conversacion_url);
 
             const emptyState = document.getElementById('emptyState');
             if (emptyState) emptyState.remove();
             pendingMessage.outerHTML = userMessageHtml(data.pregunta.contenido, data.pregunta.fecha) + assistantMessageHtml(data.respuesta);
+            streamingMessage.remove();
             if (quotaBadge) quotaBadge.textContent = `${data.mensajes_restantes} / {{ request.user.cuota_diaria_mensajes }} restantes`;
             actualizarEstadoCuota();
             chatContainer.scrollTop = chatContainer.scrollHeight;
         } catch (error) {
             pendingMessage.remove();
+            streamingMessage.remove();
             chatInput.value = message;
             window.showAppToast(error.message || 'No se pudo conectar con el agente conversacional. Inténtalo de nuevo.', 'error');
         } finally {

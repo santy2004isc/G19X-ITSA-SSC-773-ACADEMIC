@@ -84,10 +84,47 @@
         }
     }
 
+    async function consumirEventosSSE(response, onEvent) {
+        if (!response.body) {
+            throw new Error('El navegador no pudo iniciar la transmisión de la respuesta.');
+        }
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+
+        function procesarBloques(finalizar) {
+            const bloques = buffer.split(/\r?\n\r?\n/);
+            if (finalizar) {
+                buffer = '';
+            } else {
+                buffer = bloques.pop();
+            }
+
+            for (const bloque of bloques) {
+                if (!bloque.trim()) continue;
+                let tipo = 'message';
+                const datos = [];
+                for (const linea of bloque.split(/\r?\n/)) {
+                    if (linea.startsWith('event:')) tipo = linea.slice(6).trim();
+                    if (linea.startsWith('data:')) datos.push(linea.slice(5).trimStart());
+                }
+                if (datos.length) onEvent(tipo, JSON.parse(datos.join('\n')));
+            }
+        }
+
+        while (true) {
+            const {value, done} = await reader.read();
+            buffer += decoder.decode(value || new Uint8Array(), {stream: !done});
+            procesarBloques(done);
+            if (done) break;
+        }
+    }
+
     window.ChatEngine = {
         escapeHtml: escapeHtml,
         renderMarkdown: renderMarkdown,
-        copiarAlPortapapeles: copiarAlPortapapeles
+        copiarAlPortapapeles: copiarAlPortapapeles,
+        consumirEventosSSE: consumirEventosSSE
     };
 
 })(window);

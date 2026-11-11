@@ -1,14 +1,19 @@
 import json
 import logging
 from uuid import UUID
-from django.http import Http404, JsonResponse
+from django.http import Http404, JsonResponse, StreamingHttpResponse
 from django.shortcuts import get_object_or_404
 from django.urls import reverse
 from django.db import transaction
 from django.db.models import F
 
 from ..models import Conversacion, Usuario
-from ..services.chat_service import MAX_LONGITUD_MENSAJE, clasificar_mensaje, procesar_mensaje_chat
+from ..services.chat_service import (
+    MAX_LONGITUD_MENSAJE,
+    clasificar_mensaje,
+    procesar_mensaje_chat,
+    procesar_mensaje_chat_stream,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -46,6 +51,17 @@ def ejecutar_envio_mensaje(request, es_gestor=False):
             'error': f'El mensaje no puede superar {MAX_LONGITUD_MENSAJE} caracteres.'
         }, status=400)
 
+    if 'stream' in data and not isinstance(data['stream'], bool):
+        return JsonResponse({'error': 'El indicador de streaming no es válido.'}, status=400)
+    conversacion_id = data.get('conversacion_id')
+    if conversacion_id is not None and not isinstance(conversacion_id, str):
+        return JsonResponse({'error': 'El identificador de conversación no es válido.'}, status=400)
+    if conversacion_id:
+        try:
+            conversacion_id = UUID(conversacion_id)
+        except ValueError:
+            return JsonResponse({'error': 'El identificador de conversación no es válido.'}, status=400)
+
     cuota_reservada = False
     if not es_gestor and clasificar_mensaje(pregunta) == 'juridico':
         with transaction.atomic():
@@ -61,15 +77,6 @@ def ejecutar_envio_mensaje(request, es_gestor=False):
         usuario.refresh_from_db(fields=['mensajes_usados_hoy'])
         cuota_reservada = True
 
-    conversacion_id = data.get('conversacion_id')
-    if conversacion_id is not None and not isinstance(conversacion_id, str):
-        return JsonResponse({'error': 'El identificador de conversación no es válido.'}, status=400)
-    if conversacion_id:
-        try:
-            conversacion_id = UUID(conversacion_id)
-        except ValueError:
-            return JsonResponse({'error': 'El identificador de conversación no es válido.'}, status=400)
-
     try:
         if conversacion_id:
             conversacion = get_object_or_404(Conversacion, id=conversacion_id, usuario=usuario)
@@ -81,6 +88,49 @@ def ejecutar_envio_mensaje(request, es_gestor=False):
         if not conversacion._state.adding and not conversacion.mensajes.exists() and conversacion.titulo in titulos_defecto:
             conversacion.titulo = pregunta[:40] + ("..." if len(pregunta) > 40 else "")
             conversacion.save()
+
+        if data.get('stream', False):
+            if es_gestor:
+                url_conversacion = reverse('gestor_chat_conversacion', kwargs={'conversacion_id': conversacion.id})
+                mensajes_restantes = "Ilimitado"
+            else:
+                url_conversacion = reverse('chat_conversacion', kwargs={'conversacion_id': conversacion.id})
+                mensajes_restantes = max(0, usuario.cuota_diaria_mensajes - usuario.mensajes_usados_hoy)
+
+            def eventos_sse():
+                intercambio_completado = False
+                cuota_liberada = False
+                try:
+                    yield "event: start\ndata: {}\n\n"
+                    for evento in procesar_mensaje_chat_stream(conversacion, pregunta, usuario):
+                        if evento['event'] == 'complete':
+                            intercambio_completado = True
+                            evento.update({
+                                'ok': True,
+                                'conversacion_url': url_conversacion,
+                                'mensajes_restantes': mensajes_restantes,
+                            })
+                        yield f"event: {evento['event']}\ndata: {json.dumps(evento, ensure_ascii=False)}\n\n"
+                except Exception:
+                    if cuota_reservada:
+                        Usuario.objects.filter(pk=usuario.pk, mensajes_usados_hoy__gt=0).update(
+                            mensajes_usados_hoy=F('mensajes_usados_hoy') - 1
+                        )
+                        cuota_liberada = True
+                    rol_desc = "gestor" if es_gestor else "usuario"
+                    logger.exception(f"Error interno al transmitir un mensaje de {rol_desc}.")
+                    error = {'event': 'error', 'error': 'Ocurrió un error interno al procesar tu mensaje. Inténtalo de nuevo.'}
+                    yield f"event: error\ndata: {json.dumps(error, ensure_ascii=False)}\n\n"
+                finally:
+                    if cuota_reservada and not intercambio_completado and not cuota_liberada:
+                        Usuario.objects.filter(pk=usuario.pk, mensajes_usados_hoy__gt=0).update(
+                            mensajes_usados_hoy=F('mensajes_usados_hoy') - 1
+                        )
+
+            response = StreamingHttpResponse(eventos_sse(), content_type='text/event-stream; charset=utf-8')
+            response['Cache-Control'] = 'no-cache, no-transform'
+            response['X-Accel-Buffering'] = 'no'
+            return response
 
         msg_usuario, msg_sistema, citas = procesar_mensaje_chat(
             conversacion,

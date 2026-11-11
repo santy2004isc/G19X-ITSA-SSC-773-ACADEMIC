@@ -140,7 +140,7 @@
 </div>
 
 {% load static %}
-<script src="{% static 'js/chat_engine.js' %}"></script>
+<script src="{% static 'js/chat_engine.js' %}?v=2"></script>
 <script>
     // Control para Ocultar / Mostrar Sidebar
     const toggleSidebarBtn = document.getElementById('toggleSidebar');
@@ -187,6 +187,11 @@
         const conversacion_id = conversacionIdInput.value;
 
         const mensajePendiente = renderizarMensajeUsuario(mensaje);
+        const respuestaEnProgreso = document.createElement('div');
+        respuestaEnProgreso.className = 'flex justify-start';
+        respuestaEnProgreso.innerHTML = '<div class="w-full max-w-2xl min-w-0 bg-white border border-slate-200 text-slate-800 p-4 rounded-2xl rounded-tl-none text-sm shadow-sm break-words overflow-hidden"><div class="markdown-content whitespace-pre-wrap break-words"></div></div>';
+        const contenidoEnProgreso = respuestaEnProgreso.querySelector('.markdown-content');
+        chatContainer.appendChild(respuestaEnProgreso);
         mensajeInput.value = '';
         mensajeInput.disabled = true;
         btnEnviar.disabled = true;
@@ -203,31 +208,63 @@
                 },
                 body: JSON.stringify({
                     mensaje: mensaje,
-                    conversacion_id: conversacion_id
+                    conversacion_id: conversacion_id || null,
+                    stream: true
                 })
             });
 
-            let data;
-            try {
-                data = await response.json();
-            } catch (_) {
-                throw new Error(response.status === 403
+            if (!response.ok) {
+                let errorData = {};
+                try { errorData = await response.json(); } catch (_) {}
+                throw new Error(errorData.error || (response.status === 403
                     ? 'La sesión expiró. Recarga la página e inténtalo de nuevo.'
-                    : 'No se pudo interpretar la respuesta del servidor.');
+                    : 'No se pudo iniciar la transmisión de la respuesta.'));
             }
-            if (!response.ok || !data.ok || !data.respuesta) {
-                throw new Error(data.error || 'Ocurrió un error al procesar la solicitud.');
+            let textoRespuesta = '';
+            let data = null;
+            await ChatEngine.consumirEventosSSE(response, (tipo, evento) => {
+                if (tipo === 'token') {
+                    textoRespuesta += evento.text || '';
+                    contenidoEnProgreso.textContent = textoRespuesta;
+                } else if (tipo === 'reset') {
+                    textoRespuesta = '';
+                    contenidoEnProgreso.textContent = '';
+                } else if (tipo === 'error') {
+                    throw new Error(evento.error || 'Ocurrió un error al procesar la solicitud.');
+                } else if (tipo === 'complete') {
+                    data = evento;
+                }
+                chatContainer.scrollTop = chatContainer.scrollHeight;
+            });
+            if (!data || !data.ok || !data.respuesta || !data.conversacion_url) {
+                throw new Error('La transmisión terminó sin una respuesta completa.');
             }
 
+            conversacionIdInput.value = data.conversacion_id;
+            window.history.replaceState(null, '', data.conversacion_url);
             if (!conversacion_id) {
-                if (!data.conversacion_url) throw new Error('No se pudo abrir la nueva conversación.');
-                window.location.assign(data.conversacion_url);
-                return;
+                const listaConversaciones = document.querySelector('#sidebar .flex-1.overflow-y-auto');
+                const mensajeVacio = listaConversaciones?.querySelector('.text-center');
+                if (mensajeVacio) mensajeVacio.remove();
+                if (listaConversaciones) {
+                    const enlace = document.createElement('a');
+                    enlace.href = data.conversacion_url;
+                    enlace.textContent = data.conversacion_titulo;
+                    enlace.className = 'block rounded-lg px-3 py-2 text-xs font-medium bg-blue-600 text-white truncate';
+                    listaConversaciones.appendChild(enlace);
+                }
             }
-
+            mensajePendiente.innerHTML = `
+                <div class="w-full max-w-xl min-w-0 bg-blue-600 text-white p-3.5 rounded-2xl rounded-tr-none text-sm shadow break-words overflow-hidden">
+                    <p class="whitespace-pre-wrap break-words">${ChatEngine.escapeHtml(data.pregunta.contenido)}</p>
+                    <span class="block text-[10px] text-blue-200 text-right mt-1">${ChatEngine.escapeHtml(data.pregunta.fecha)}</span>
+                </div>
+            `;
+            respuestaEnProgreso.remove();
             renderizarRespuestaSistema(data.respuesta);
         } catch (err) {
             mensajePendiente.remove();
+            respuestaEnProgreso.remove();
             mensajeInput.value = mensaje;
             window.showAppToast(err.message || 'Error de conexión con el servidor.', 'error');
         } finally {

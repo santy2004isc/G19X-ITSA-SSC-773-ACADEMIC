@@ -41,6 +41,9 @@
         {% endif %}
     </nav>
     <div class="role-sidebar-bottom">
+        <button type="button" data-theme-toggle class="role-sidebar-link role-theme-toggle" aria-label="Cambiar a tema oscuro" aria-pressed="false" title="Cambiar tema">
+            <svg class="theme-icon-sun" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M4.93 4.93l1.42 1.42m11.3 11.3 1.42 1.42M2 12h2m16 0h2M4.93 19.07l1.42-1.42m11.3-11.3 1.42-1.42"/></svg><span class="role-sidebar-label">Tema oscuro</span>
+        </button>
         <a href="{% url 'usuario_perfil' %}" class="role-sidebar-user user-sidebar-profile {% if request.resolver_match.url_name == 'usuario_perfil' %}is-active{% endif %}" title="Ver mi perfil" aria-label="Ver el perfil de {{ request.user.nombre }} {{ request.user.apellido }}">
             <span class="role-user-avatar">{{ request.user.nombre|slice:":1"|upper }}</span>
             <span class="role-sidebar-label"><strong>{{ request.user.nombre }} {{ request.user.apellido }}</strong><small>Ver mi perfil</small></span>

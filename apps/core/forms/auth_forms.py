@@ -123,6 +123,9 @@ class RegistroForm(forms.ModelForm):
             }),
         }
 
+    def clean_correo_electronico(self):
+        return self.cleaned_data['correo_electronico'].strip().lower()
+
     def clean_password_confirmacion(self):
         password = self.cleaned_data.get("password")
         password_confirmacion = self.cleaned_data.get("password_confirmacion")

@@ -23,6 +23,7 @@ from .services.pdf_processor import (
 from .services.chat_service import (
     clasificar_mensaje,
     generar_respuesta_ia_con_fallback,
+    generar_respuesta_ia_stream,
     MENSAJE_SATURACION_APIS,
     preparar_contexto_conversacion,
     resumir_historial_mensajes,
@@ -99,6 +100,21 @@ class FrontendFormValidationTest(TestCase):
             form = RegistroForm(data=datos)
             self.assertFalse(form.is_valid(), password)
             self.assertIn('password', form.errors, password)
+
+    def test_registro_normaliza_correo_a_minusculas_y_sin_espacios_laterales(self):
+        datos = {
+            'nombre': 'Ana',
+            'apellido': 'García',
+            'correo_electronico': '  Ana.Ejemplo@Example.COM  ',
+            'password': 'Password123!',
+            'password_confirmacion': 'Password123!',
+        }
+
+        form = RegistroForm(data=datos)
+
+        self.assertTrue(form.is_valid(), form.errors)
+        usuario = form.save()
+        self.assertEqual(usuario.correo_electronico, 'ana.ejemplo@example.com')
 
     def test_nombre_de_ley_acepta_hasta_500_caracteres(self):
         datos = {
@@ -212,6 +228,7 @@ class AutenticacionMiddlewareTest(TestCase):
         self.client.force_login(self.user)
         response = self.client.get(reverse('chat_interfaz'))
         self.assertEqual(response.status_code, 200)
+        self.assertContains(response, '/static/js/chat_engine.js?v=2')
 
     def test_sesion_expirada_por_inactividad_redirige_a_login(self):
         self.client.force_login(self.user)
@@ -836,6 +853,38 @@ class ChatIntentTest(TestCase):
             )
             self.assertEqual(response.status_code, 400)
 
+    @patch('apps.core.services.chat_service.buscar_contexto_normativo')
+    @patch('apps.core.services.chat_service.get_groq_client')
+    def test_endpoint_stream_transmite_respuesta_y_persiste_intercambio(self, mock_get_groq, mock_buscar):
+        mock_buscar.return_value = ('Artículo 1. Contexto legal.', [])
+        fragmentos = [
+            MagicMock(choices=[MagicMock(delta=MagicMock(content='Respuesta '), finish_reason=None)]),
+            MagicMock(choices=[MagicMock(delta=MagicMock(content='transmitida.'), finish_reason='stop')]),
+        ]
+        mock_get_groq.return_value.chat.completions.create.return_value = iter(fragmentos)
+        self.client.force_login(self.usuario)
+
+        response = self.client.post(
+            reverse('chat_api_enviar'),
+            data=json.dumps({'mensaje': '¿Qué dice el artículo 1?', 'stream': True}),
+            content_type='application/json',
+        )
+
+        contenido = b''.join(response.streaming_content).decode('utf-8')
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response['Content-Type'].startswith('text/event-stream'))
+        self.assertIn('event: token', contenido)
+        self.assertIn('Respuesta ', contenido)
+        self.assertIn('transmitida.', contenido)
+        self.assertIn('event: complete', contenido)
+        self.assertEqual(Mensaje.objects.filter(conversacion__usuario=self.usuario).count(), 2)
+        mensaje_respuesta = Mensaje.objects.get(
+            conversacion__usuario=self.usuario,
+            emisor=Mensaje.Emisor.SISTEMA,
+        )
+        self.assertEqual(mensaje_respuesta.contenido_texto, 'Respuesta transmitida.')
+        self.assertEqual(mensaje_respuesta.proveedor_ia, Mensaje.ProveedorIA.GROQ)
+
     @patch('apps.core.services.chat_service.generar_respuesta_ia_con_fallback')
     @patch('apps.core.services.chat_service.buscar_contexto_normativo')
     def test_consulta_juridica_si_consulta_la_base_normativa(self, mock_buscar, mock_generar):
@@ -906,6 +955,34 @@ class ChatServiceFallbackTest(TestCase):
         )
         self.assertIn("No se encontró información suficiente", respuesta)
         self.assertFalse(conmutado)
+
+    @patch('apps.core.services.chat_service.get_gemini_client')
+    @patch('apps.core.services.chat_service.get_groq_client')
+    def test_stream_fallback_reinicia_fragmentos_del_proveedor_anterior(self, mock_get_groq, mock_get_gemini):
+        def fragmentos_groq():
+            yield MagicMock(choices=[MagicMock(delta=MagicMock(content='Parcial Groq'), finish_reason=None)])
+            raise Exception('Groq timeout')
+
+        mock_get_groq.return_value.chat.completions.create.return_value = fragmentos_groq()
+        mock_get_gemini.return_value.models.generate_content_stream.return_value = [
+            MagicMock(text='Respuesta Gemini')
+        ]
+
+        eventos = list(generar_respuesta_ia_stream(
+            pregunta_usuario='¿Qué dice el artículo 1?',
+            contexto_normativo='Artículo 1. Contexto.',
+            usuario=self.usuario,
+        ))
+
+        self.assertEqual(
+            [(evento['event'], evento.get('text')) for evento in eventos if evento['event'] in ('token', 'reset')],
+            [('token', 'Parcial Groq'), ('reset', None), ('token', 'Respuesta Gemini')],
+        )
+        self.assertEqual(eventos[-1], {
+            'event': 'meta',
+            'proveedor': Mensaje.ProveedorIA.GEMINI,
+            'conmutado': True,
+        })
 
     def test_historial_conserva_resumen_y_ultimos_mensajes(self):
         historial = [

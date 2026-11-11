@@ -262,6 +262,51 @@ def preparar_contexto_conversacion(mensajes):
     return resumen, recientes
 
 
+def _construir_prompts(pregunta_usuario, contexto_normativo, historial_mensajes):
+    resumen_historial, mensajes_recientes = preparar_contexto_conversacion(historial_mensajes or [])
+
+    system_prompt = (
+        "Eres un asistente legal experto en la legislación federal vigente de México. "
+        "Tu objetivo es responder a la pregunta del usuario utilizando EXCLUSIVAMENTE el contexto normativo proporcionado.\n\n"
+        "REGLA DE FILTRO / GUARDRAIL DE CONTEXTO:\n"
+        "Puedes responder consultas generales o específicas sobre cualquier Ley Federal, código, reglamento o norma federal mexicana cargada, "
+        "independientemente de cuál sea su nombre. Si la conversación anterior identifica una ley o un artículo, puedes usarla para resolver preguntas de seguimiento breves. "
+        "Si no existe contexto normativo recuperado y tampoco hay historial que permita identificar la ley, solicita que el usuario indique la ley o el tema. "
+        "Si la consulta es ajena al marco jurídico mexicano, las leyes federales mexicanas "
+        "o el contexto proporcionado no permite fundamentarla, debes rechazarla respondiendo "
+        "ÚNICAMENTE con el siguiente mensaje estandarizado:\n"
+        "\"Lo siento, únicamente puedo responder consultas relacionadas con el marco legal mexicano y fundamentadas en el contexto normativo disponible. Por favor, formula una pregunta dentro de este ámbito.\"\n\n"
+        "PAUTAS DE RESPUESTA:\n"
+        "1. Explica los conceptos jurídicos en un lenguaje natural, claro, accesible y profesional.\n"
+        "2. Menciona explícitamente el artículo del contexto normativo en que apoyas la respuesta, si existe; "
+        "los encabezados indican la ley y el número de artículo. No inventes artículo, ley ni cita si el contexto no contiene la referencia.\n"
+        "3. No menciones la vigencia o estado de las leyes, ya que todas las normas proporcionadas están vigentes."
+    )
+
+    contexto_conversacion = ""
+    if resumen_historial:
+        contexto_conversacion += f"\nResumen compacto del contexto anterior:\n{resumen_historial}\n"
+    if mensajes_recientes:
+        contexto_conversacion += "\nMensajes recientes de la conversación:\n" + "\n".join(
+            f"- {'Asistente' if item.get('emisor') in (Mensaje.Emisor.SISTEMA, 'SISTEMA', 'assistant') else 'Usuario'}: {item.get('texto', '').strip()}"
+            for item in mensajes_recientes
+            if item.get('texto', '').strip()
+        )
+
+    user_prompt = (
+        f"Contexto Normativo Vigente:\n{contexto_normativo}\n"
+        f"{contexto_conversacion}\n\nPregunta actual del usuario: {pregunta_usuario}"
+    )
+    mensajes_groq = [{"role": "system", "content": system_prompt}]
+    for item in mensajes_recientes:
+        rol = "assistant" if item.get('emisor') in (Mensaje.Emisor.SISTEMA, 'SISTEMA', 'assistant') else "user"
+        texto_item = item.get('texto', '').strip()
+        if texto_item:
+            mensajes_groq.append({"role": rol, "content": texto_item})
+    mensajes_groq.append({"role": "user", "content": user_prompt})
+    return system_prompt, user_prompt, mensajes_groq
+
+
 def _es_error_temporal_gemini(error):
     texto_error = str(error).lower()
     return any(
@@ -337,6 +382,92 @@ def procesar_mensaje_chat(conversacion, pregunta, usuario):
     return mensaje_usuario, mensaje_sistema, citas
 
 
+def procesar_mensaje_chat_stream(conversacion, pregunta, usuario):
+    """Genera y persiste un intercambio mientras emite fragmentos de respuesta."""
+    tipo_mensaje = clasificar_mensaje(pregunta)
+    if tipo_mensaje in ('saludo', 'cortesia'):
+        respuesta_texto = respuesta_sin_consulta_normativa(tipo_mensaje)
+        proveedor_usado = None
+        conmutado = False
+        citas = []
+        yield {'event': 'token', 'text': respuesta_texto}
+    else:
+        historial_previo = []
+        if not conversacion._state.adding and conversacion.pk:
+            mensajes_qs = list(conversacion.mensajes.order_by('-fecha_envio')[:12])
+            mensajes_qs.reverse()
+            historial_previo = [
+                {'emisor': mensaje.emisor, 'texto': mensaje.contenido_texto}
+                for mensaje in mensajes_qs
+            ]
+
+        consulta_recuperacion = pregunta
+        usuarios_previos = [
+            mensaje['texto'].strip()
+            for mensaje in historial_previo[-4:]
+            if mensaje['emisor'] in ('USUARIO', Mensaje.Emisor.USUARIO) and mensaje['texto'].strip()
+        ]
+        if usuarios_previos and clasificar_mensaje(pregunta) == 'juridico':
+            consulta_recuperacion = " ".join([*usuarios_previos[-2:], pregunta])
+
+        contexto, citas = buscar_contexto_normativo(consulta_recuperacion)
+        respuesta_partes = []
+        proveedor_usado = Mensaje.ProveedorIA.GROQ
+        conmutado = False
+        for evento in generar_respuesta_ia_stream(
+            pregunta_usuario=pregunta,
+            contexto_normativo=contexto,
+            usuario=usuario,
+            historial_mensajes=historial_previo,
+        ):
+            if evento['event'] == 'token':
+                respuesta_partes.append(evento['text'])
+            elif evento['event'] == 'reset':
+                respuesta_partes.clear()
+            elif evento['event'] == 'meta':
+                proveedor_usado = evento['proveedor']
+                conmutado = evento['conmutado']
+            yield evento
+        respuesta_texto = ''.join(respuesta_partes)
+        if "únicamente puedo responder consultas relacionadas con el marco legal mexicano" in respuesta_texto.lower():
+            citas = []
+
+    with transaction.atomic():
+        if conversacion._state.adding:
+            conversacion.save(force_insert=True)
+        mensaje_usuario = Mensaje.objects.create(
+            conversacion=conversacion,
+            emisor=Mensaje.Emisor.USUARIO,
+            contenido_texto=pregunta,
+        )
+        mensaje_sistema = Mensaje.objects.create(
+            conversacion=conversacion,
+            emisor=Mensaje.Emisor.SISTEMA,
+            contenido_texto=respuesta_texto,
+            proveedor_ia=proveedor_usado,
+            conmutado_fallback=conmutado,
+            citas=citas,
+        )
+    yield {
+        'event': 'complete',
+        'pregunta': {
+            'id': mensaje_usuario.id,
+            'contenido': mensaje_usuario.contenido_texto,
+            'fecha': mensaje_usuario.fecha_envio.strftime('%H:%M'),
+        },
+        'respuesta': {
+            'id': mensaje_sistema.id,
+            'contenido': mensaje_sistema.contenido_texto,
+            'proveedor': mensaje_sistema.proveedor_ia,
+            'conmutado': mensaje_sistema.conmutado_fallback,
+            'citas': citas,
+            'fecha': mensaje_sistema.fecha_envio.strftime('%H:%M'),
+        },
+        'conversacion_id': str(conversacion.id),
+        'conversacion_titulo': conversacion.titulo,
+    }
+
+
 def generar_respuesta_ia_con_fallback(pregunta_usuario, contexto_normativo, usuario=None, modelo_solicitado=None, historial_mensajes=None):
     """
     Procesa la llamada a Groq y conmuta a Gemini si falla (RF-3.2, RF-3.3).
@@ -352,40 +483,13 @@ def generar_respuesta_ia_con_fallback(pregunta_usuario, contexto_normativo, usua
             False
         )
 
-    resumen_historial, mensajes_recientes = preparar_contexto_conversacion(historial_mensajes or [])
-
-    system_prompt = (
-        "Eres un asistente legal experto en la legislación federal vigente de México. "
-        "Tu objetivo es responder a la pregunta del usuario utilizando EXCLUSIVAMENTE el contexto normativo proporcionado.\n\n"
-        "REGLA DE FILTRO / GUARDRAIL DE CONTEXTO:\n"
-        "Puedes responder consultas generales o específicas sobre cualquier Ley Federal, código, reglamento o norma federal mexicana cargada, "
-        "independientemente de cuál sea su nombre. Si la conversación anterior identifica una ley o un artículo, puedes usarla para resolver preguntas de seguimiento breves. "
-        "Si no existe contexto normativo recuperado y tampoco hay historial que permita identificar la ley, solicita que el usuario indique la ley o el tema. "
-        "Si la consulta es ajena al marco jurídico mexicano, las leyes federales mexicanas "
-        "o el contexto proporcionado no permite fundamentarla, debes rechazarla respondiendo "
-        "ÚNICAMENTE con el siguiente mensaje estandarizado:\n"
-        "\"Lo siento, únicamente puedo responder consultas relacionadas con el marco legal mexicano y fundamentadas en el contexto normativo disponible. Por favor, formula una pregunta dentro de este ámbito.\"\n\n"
-        "PAUTAS DE RESPUESTA:\n"
-        "1. Explica los conceptos jurídicos en un lenguaje natural, claro, accesible y profesional.\n"
-        "2. Menciona explícitamente el artículo del contexto normativo en que apoyas la respuesta, si existe; "
-        "los encabezados indican la ley y el número de artículo. No inventes artículo, ley ni cita si el contexto no contiene la referencia.\n"
-        "3. No menciones la vigencia o estado de las leyes, ya que todas las normas proporcionadas están vigentes."
+    system_prompt, user_prompt, mensajes_groq = _construir_prompts(
+        pregunta_usuario,
+        contexto_normativo,
+        historial_mensajes,
     )
-
-    contexto_conversacion = ""
-    if resumen_historial:
-        contexto_conversacion += f"\nResumen compacto del contexto anterior:\n{resumen_historial}\n"
-    if mensajes_recientes:
-        contexto_conversacion += "\nMensajes recientes de la conversación:\n" + "\n".join(
-            f"- {'Asistente' if item.get('emisor') in (Mensaje.Emisor.SISTEMA, 'SISTEMA', 'assistant') else 'Usuario'}: {item.get('texto', '').strip()}"
-            for item in mensajes_recientes
-            if item.get('texto', '').strip()
-        )
-
-    user_prompt = (
-        f"Contexto Normativo Vigente:\n{contexto_normativo}\n"
-        f"{contexto_conversacion}\n\nPregunta actual del usuario: {pregunta_usuario}"
-    )
+    _, mensajes_recientes = preparar_contexto_conversacion(historial_mensajes or [])
+    resumen_historial, _ = preparar_contexto_conversacion(historial_mensajes or [])
 
     proveedor_usado = Mensaje.ProveedorIA.GROQ
     conmutado = False
@@ -395,15 +499,6 @@ def generar_respuesta_ia_con_fallback(pregunta_usuario, contexto_normativo, usua
         groq_client = get_groq_client()
         modelo_groq = modelo_solicitado if isinstance(modelo_solicitado, str) else settings.GROQ_MODEL
         
-        mensajes_groq = [{"role": "system", "content": system_prompt}]
-        if mensajes_recientes:
-            for item in mensajes_recientes:
-                rol = "assistant" if item.get('emisor') in (Mensaje.Emisor.SISTEMA, 'SISTEMA', 'assistant') else "user"
-                texto_item = item.get('texto', '').strip()
-                if texto_item:
-                    mensajes_groq.append({"role": rol, "content": texto_item})
-        mensajes_groq.append({"role": "user", "content": user_prompt})
-
         response = groq_client.chat.completions.create(
             model=modelo_groq,
             messages=mensajes_groq,
@@ -475,3 +570,108 @@ def generar_respuesta_ia_con_fallback(pregunta_usuario, contexto_normativo, usua
                 
                 # Notificación controlada y amigable al usuario (RF-3.3) sin romper la sesión ni provocar error 500
                 return MENSAJE_SATURACION_APIS, Mensaje.ProveedorIA.GEMINI, True
+
+
+def generar_respuesta_ia_stream(pregunta_usuario, contexto_normativo, usuario=None, historial_mensajes=None):
+    """Emite fragmentos de Groq o Gemini y reinicia el texto si debe cambiar de proveedor."""
+    if not contexto_normativo.strip() and not historial_mensajes:
+        yield {
+            'event': 'token',
+            'text': (
+                "No se encontró información suficiente en las leyes cargadas para responder a su consulta. "
+                "Indique la ley que desea consultar o precise el artículo o el tema normativo sobre el que pregunta."
+            ),
+        }
+        yield {'event': 'meta', 'proveedor': Mensaje.ProveedorIA.GROQ, 'conmutado': False}
+        return
+
+    system_prompt, user_prompt, mensajes_groq = _construir_prompts(
+        pregunta_usuario,
+        contexto_normativo,
+        historial_mensajes,
+    )
+    try:
+        groq_client = get_groq_client()
+        stream = groq_client.chat.completions.create(
+            model=settings.GROQ_MODEL,
+            messages=mensajes_groq,
+            temperature=0.3,
+            max_tokens=MAX_TOKENS_RESPUESTA,
+            stream=True,
+        )
+        respuesta = []
+        motivo_final = None
+        for chunk in stream:
+            if not chunk.choices:
+                continue
+            choice = chunk.choices[0]
+            contenido = getattr(choice.delta, 'content', None)
+            if contenido:
+                respuesta.append(contenido)
+                yield {'event': 'token', 'text': contenido}
+            motivo_final = getattr(choice, 'finish_reason', None) or motivo_final
+
+        if motivo_final == 'length':
+            mensajes_continuacion = mensajes_groq + [
+                {'role': 'assistant', 'content': ''.join(respuesta)},
+                {'role': 'user', 'content': 'Continúa la respuesta desde el último punto, sin repetir texto, hasta completar la explicación.'},
+            ]
+            continuacion = groq_client.chat.completions.create(
+                model=settings.GROQ_MODEL,
+                messages=mensajes_continuacion,
+                temperature=0.3,
+                max_tokens=MAX_TOKENS_RESPUESTA,
+                stream=True,
+            )
+            yield {'event': 'token', 'text': '\n\n'}
+            for chunk in continuacion:
+                if chunk.choices:
+                    contenido = getattr(chunk.choices[0].delta, 'content', None)
+                    if contenido:
+                        yield {'event': 'token', 'text': contenido}
+        yield {'event': 'meta', 'proveedor': Mensaje.ProveedorIA.GROQ, 'conmutado': False}
+        return
+    except Exception as error_groq:
+        yield {'event': 'reset'}
+        codigo_error_groq = type(error_groq).__name__
+
+    for intento in range(3):
+        respuesta_gemini = []
+        try:
+            gemini_client = get_gemini_client()
+            stream = gemini_client.models.generate_content_stream(
+                model=settings.GEMINI_MODEL,
+                contents=user_prompt,
+                config={'system_instruction': system_prompt, 'temperature': 0.3},
+            )
+            for fragmento in stream:
+                contenido = getattr(fragmento, 'text', None)
+                if contenido:
+                    respuesta_gemini.append(contenido)
+                    yield {'event': 'token', 'text': contenido}
+            RegistroFalloAPI.objects.create(
+                usuario=usuario,
+                proveedor_solicitado=Mensaje.ProveedorIA.GROQ,
+                codigo_error=str(codigo_error_groq)[:50],
+                conmutado_a=Mensaje.ProveedorIA.GEMINI,
+                exitoso=True,
+            )
+            yield {'event': 'meta', 'proveedor': Mensaje.ProveedorIA.GEMINI, 'conmutado': True}
+            return
+        except Exception as error_gemini:
+            if respuesta_gemini:
+                yield {'event': 'reset'}
+            if intento < 2 and _es_error_temporal_gemini(error_gemini):
+                time.sleep(2 ** intento)
+                continue
+
+            RegistroFalloAPI.objects.create(
+                usuario=usuario,
+                proveedor_solicitado=Mensaje.ProveedorIA.GROQ,
+                codigo_error=str(codigo_error_groq)[:50],
+                conmutado_a=Mensaje.ProveedorIA.GEMINI,
+                exitoso=False,
+            )
+            yield {'event': 'token', 'text': MENSAJE_SATURACION_APIS}
+            yield {'event': 'meta', 'proveedor': Mensaje.ProveedorIA.GEMINI, 'conmutado': True}
+            return
