@@ -29,6 +29,59 @@ from .services.chat_service import (
 )
 
 
+class DjangoAdminRegistrationTest(TestCase):
+    def test_todos_los_modelos_del_dominio_estan_registrados(self):
+        from django.contrib import admin
+
+        for model in (
+            Usuario,
+            LeyFederal,
+            FragmentoNormativo,
+            Conversacion,
+            Mensaje,
+            RegistroFalloAPI,
+        ):
+            with self.subTest(model=model.__name__):
+                self.assertIn(model, admin.site._registry)
+
+    def test_formulario_admin_guarda_contrasena_con_hash(self):
+        from .admin import UsuarioAdminCreationForm
+
+        form = UsuarioAdminCreationForm(data={
+            'correo_electronico': 'nuevo-admin@test.com',
+            'nombre': 'Nuevo',
+            'apellido': 'Administrador',
+            'rol': Usuario.Rol.REGISTRADO,
+            'activo': True,
+            'is_staff': False,
+            'is_superuser': False,
+            'password1': 'Password123!',
+            'password2': 'Password123!',
+        })
+
+        self.assertTrue(form.is_valid(), form.errors)
+        usuario = form.save()
+        self.assertTrue(usuario.check_password('Password123!'))
+
+    def test_vistas_admin_de_usuario_se_renderizan(self):
+        administrador = Usuario.objects.create_user(
+            correo_electronico='admin-site@test.com',
+            password='Password123!',
+            nombre='Admin',
+            apellido='Sitio',
+            rol=Usuario.Rol.ADMINISTRADOR,
+            is_staff=True,
+            is_superuser=True,
+        )
+        self.client.force_login(administrador)
+
+        alta = self.client.get(reverse('admin:core_usuario_add'))
+        cambio = self.client.get(reverse('admin:core_usuario_change', args=[administrador.pk]))
+
+        self.assertEqual(alta.status_code, 200)
+        self.assertContains(alta, 'password1')
+        self.assertEqual(cambio.status_code, 200)
+
 class FrontendFormValidationTest(TestCase):
     def test_registro_exige_password_con_letra_numero_y_caracter_especial(self):
         datos = {

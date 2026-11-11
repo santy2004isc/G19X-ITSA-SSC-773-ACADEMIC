@@ -9,10 +9,8 @@ https://docs.djangoproject.com/en/5.2/topics/settings/
 For the full list of settings and their values, see
 https://docs.djangoproject.com/en/5.2/ref/settings/
 """
-import os
 from pathlib import Path
-from decouple import config
-from dotenv import load_dotenv
+from decouple import Csv, config
 from django.core.exceptions import ImproperlyConfigured
 from django.core.management.utils import get_random_secret_key
 
@@ -24,7 +22,6 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-load_dotenv()
 DEBUG = config('DEBUG', default=True, cast=bool)
 SECRET_KEY = config('SECRET_KEY', default='')
 if not DEBUG and (not SECRET_KEY or SECRET_KEY.startswith('django-insecure-')):
@@ -34,8 +31,16 @@ if not DEBUG and (not SECRET_KEY or SECRET_KEY.startswith('django-insecure-')):
 if not SECRET_KEY:
     SECRET_KEY = get_random_secret_key()
 
-ALLOWED_HOSTS = [host.strip() for host in os.getenv('ALLOWED_HOSTS', '127.0.0.1,localhost').split(',')]
-CSRF_TRUSTED_ORIGINS = [origin.strip() for origin in os.getenv('CSRF_TRUSTED_ORIGINS', 'http://127.0.0.1:8000').split(',')]
+ALLOWED_HOSTS = config(
+    'ALLOWED_HOSTS',
+    default='127.0.0.1,localhost',
+    cast=Csv(),
+)
+CSRF_TRUSTED_ORIGINS = config(
+    'CSRF_TRUSTED_ORIGINS',
+    default='http://127.0.0.1:8000',
+    cast=Csv(),
+)
 
 if not DEBUG:
     SESSION_COOKIE_SECURE = True
@@ -129,7 +134,7 @@ DATABASES = {
         'NAME': config('POSTGRES_DB', default='leyes_db'),
         'USER': config('POSTGRES_USER', default='postgres'),
         'PASSWORD': config('POSTGRES_PASSWORD', default='postgres_pass_dev'),
-        'HOST': config('POSTGRES_HOST', default='db'),
+        'HOST': config('POSTGRES_HOST', default='127.0.0.1'),
         'PORT': config('POSTGRES_PORT', default='5432'),
     }
 }

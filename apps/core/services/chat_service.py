@@ -1,5 +1,4 @@
 import logging
-import os
 import re
 import time
 import unicodedata
@@ -75,16 +74,14 @@ def get_groq_client():
     """
     Instancia el cliente de Groq utilizando settings de Django con timeout estricto de 5s (RNF-04).
     """
-    api_key = getattr(settings, 'GROQ_API_KEY', None) or os.getenv("GROQ_API_KEY", "")
-    return groq.Groq(api_key=api_key, timeout=5.0)
+    return groq.Groq(api_key=settings.GROQ_API_KEY, timeout=5.0)
 
 
 def get_gemini_client():
     """
     Instancia el cliente de Gemini utilizando settings de Django.
     """
-    api_key = getattr(settings, 'GEMINI_API_KEY', None) or os.getenv("GEMINI_API_KEY", "")
-    return genai.Client(api_key=api_key)
+    return genai.Client(api_key=settings.GEMINI_API_KEY)
 
 
 CACHE_LEYES_VIGENTES_KEY = 'leyes_vigentes_catalogo'
