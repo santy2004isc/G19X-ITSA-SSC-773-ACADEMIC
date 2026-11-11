@@ -336,6 +336,66 @@ class ControlDeRolesTest(TestCase):
         response = self.client.get(reverse('gestor_dashboard'))
         self.assertEqual(response.status_code, 200)
 
+    def test_dashboard_renderiza_estado_indexacion_y_endpoint_de_seguimiento(self):
+        self.client.force_login(self.usuario_gestor)
+        ley = LeyFederal.objects.create(
+            usuario=self.usuario_gestor,
+            nombre='Ley bajo seguimiento',
+            fecha_publicacion=timezone.now().date(),
+            estado_procesamiento=LeyFederal.EstadoProcesamiento.PENDIENTE,
+        )
+
+        response = self.client.get(
+            reverse('gestor_dashboard') + f'?seguimiento={ley.pk}'
+        )
+
+        self.assertContains(response, reverse('gestor_estados_indexacion'))
+        self.assertContains(response, f'data-indexacion-ley="{ley.pk}"')
+        self.assertContains(response, f'data-seguimiento="{ley.pk}"')
+
+    def test_endpoint_de_estados_solo_expone_leyes_del_gestor(self):
+        self.client.force_login(self.usuario_gestor)
+        propia = LeyFederal.objects.create(
+            usuario=self.usuario_gestor,
+            nombre='Ley propia',
+            fecha_publicacion=timezone.now().date(),
+            estado_procesamiento=LeyFederal.EstadoProcesamiento.PROCESANDO,
+        )
+        ajena = LeyFederal.objects.create(
+            usuario=self.usuario_admin,
+            nombre='Ley ajena',
+            fecha_publicacion=timezone.now().date(),
+            estado_procesamiento=LeyFederal.EstadoProcesamiento.COMPLETADO,
+        )
+
+        response = self.client.get(
+            reverse('gestor_estados_indexacion'),
+            {'ids': f'{propia.pk},{ajena.pk}'},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()['leyes'], [{
+            'id': propia.pk,
+            'nombre': 'Ley propia',
+            'estado_procesamiento': LeyFederal.EstadoProcesamiento.PROCESANDO,
+            'error_procesamiento': '',
+        }])
+
+    def test_endpoint_de_estados_valida_ids_y_requiere_rol_gestor(self):
+        self.client.force_login(self.usuario_gestor)
+        response_invalida = self.client.get(
+            reverse('gestor_estados_indexacion'),
+            {'ids': '1,no-es-numero'},
+        )
+        self.assertEqual(response_invalida.status_code, 400)
+
+        self.client.force_login(self.usuario_registrado)
+        response_sin_rol = self.client.get(
+            reverse('gestor_estados_indexacion'),
+            {'ids': '1'},
+        )
+        self.assertEqual(response_sin_rol.status_code, 302)
+
     def test_cambiar_estado_y_eliminar_usuario_requieren_post(self):
         self.client.force_login(self.usuario_admin)
 
@@ -488,7 +548,11 @@ class ControlDeRolesTest(TestCase):
             },
         )
 
-        self.assertRedirects(response, reverse('gestor_dashboard'), fetch_redirect_response=False)
+        self.assertRedirects(
+            response,
+            f"{reverse('gestor_dashboard')}?seguimiento={LeyFederal.objects.get(nombre='Copia de la ley').pk}",
+            fetch_redirect_response=False,
+        )
         ley = LeyFederal.objects.get(nombre='Copia de la ley')
         self.assertEqual(ley.estado_procesamiento, LeyFederal.EstadoProcesamiento.PENDIENTE)
         self.assertEqual(ley.archivo_proceso, 'pdf_ingesta/nueva.pdf')
@@ -524,7 +588,11 @@ class ControlDeRolesTest(TestCase):
             },
         )
 
-        self.assertRedirects(response, reverse('gestor_dashboard'), fetch_redirect_response=False)
+        self.assertRedirects(
+            response,
+            f"{reverse('gestor_dashboard')}?seguimiento={ley.pk}",
+            fetch_redirect_response=False,
+        )
         self.assertEqual(ley.fragmentos.count(), 1)
         ley.refresh_from_db()
         self.assertEqual(ley.estado_procesamiento, LeyFederal.EstadoProcesamiento.PENDIENTE)

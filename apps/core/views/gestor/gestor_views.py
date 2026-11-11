@@ -8,9 +8,11 @@ from django.core.exceptions import ValidationError
 from django.core.files.storage import default_storage
 from django.http import JsonResponse
 from django.db import transaction
+from django.db.models import Q
 from django.core.paginator import Paginator
+from django.urls import reverse
 from django.utils import timezone
-from django.views.decorators.http import require_POST
+from django.views.decorators.http import require_GET, require_POST
 
 from ...models import Usuario, LeyFederal, FragmentoNormativo
 from ...forms.gestor_forms import CargarDocumentoForm, EditarPerfilGestorForm, EditarLeyFederalForm
@@ -89,6 +91,24 @@ def gestor_dashboard_view(request):
 
 @login_required
 @gestor_required
+@require_GET
+def estados_indexacion_view(request):
+    ids_parametro = request.GET.get('ids', '')
+    try:
+        ids = [int(ley_id) for ley_id in ids_parametro.split(',') if ley_id]
+    except ValueError:
+        return JsonResponse({'error': 'La lista de leyes solicitada no es válida.'}, status=400)
+    if len(ids) > 100:
+        return JsonResponse({'error': 'No se pueden consultar más de 100 leyes a la vez.'}, status=400)
+
+    leyes = LeyFederal.objects.filter(pk__in=ids).filter(
+        Q(usuario=request.user) | Q(usuario_modificacion=request.user)
+    ).values('id', 'nombre', 'estado_procesamiento', 'error_procesamiento')
+    return JsonResponse({'leyes': list(leyes)})
+
+
+@login_required
+@gestor_required
 @require_POST
 def eliminar_ley_view(request, ley_id):
     """Elimina definitivamente una ley y sus fragmentos asociados."""
@@ -129,7 +149,7 @@ def cargar_documento_view(request):
                     request,
                     f"La norma '{ley.nombre}' se guardó y su procesamiento continuará en segundo plano.",
                 )
-                return redirect('gestor_dashboard')
+                return redirect(f"{reverse('gestor_dashboard')}?seguimiento={ley.pk}")
             except Exception:
                 logger.exception("No se pudo encolar el procesamiento del PDF %r", archivo_pdf.name)
                 if ley.pk:
@@ -183,6 +203,7 @@ def editar_ley_view(request, ley_id):
                         request,
                         f"La ley '{ley.nombre}' se actualizó y el PDF se reprocesará en segundo plano.",
                     )
+                    return redirect(f"{reverse('gestor_dashboard')}?seguimiento={ley_actualizada.pk}")
                 else:
                     messages.success(request, f"Los datos de la ley '{ley.nombre}' fueron actualizados correctamente.")
                 return redirect('gestor_dashboard')

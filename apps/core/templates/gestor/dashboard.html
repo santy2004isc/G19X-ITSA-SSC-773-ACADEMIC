@@ -12,7 +12,11 @@
     </header>
 
     <!-- Main Content -->
-    <main class="flex-1 w-full mx-auto p-6 space-y-6">
+    <main
+        class="flex-1 w-full mx-auto p-6 space-y-6"
+        data-indexacion-url="{% url 'gestor_estados_indexacion' %}"
+        data-seguimiento="{{ request.GET.seguimiento|default:'' }}"
+    >
         <!-- Tarjetas de Resumen -->
         <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between">
@@ -107,7 +111,7 @@
                             <span class="status-pill status-pill-error bg-red-100 text-red-800 text-xs px-2.5 py-1 rounded-full font-semibold">Abrogada</span>
                             {% endif %}
                         </td>
-                        <td class="px-4 py-4 max-w-sm">
+                        <td class="px-4 py-4 max-w-sm" data-indexacion-ley="{{ ley.id }}" data-estado-indexacion="{{ ley.estado_procesamiento }}">
                             {% if ley.estado_procesamiento == 'PENDIENTE' %}
                             <span class="bg-amber-100 text-amber-800 text-xs px-2.5 py-1 rounded-full font-semibold">En cola</span>
                             {% elif ley.estado_procesamiento == 'PROCESANDO' %}
@@ -157,4 +161,111 @@
         {% endif %}
     </main>
 </div>
+<script>
+    (function () {
+        const dashboard = document.querySelector('[data-indexacion-url]');
+        if (!dashboard) return;
+
+        const celdas = new Map(
+            Array.from(document.querySelectorAll('[data-indexacion-ley]'))
+                .map(celda => [celda.dataset.indexacionLey, celda])
+        );
+        const estadosConocidos = new Map(
+            Array.from(celdas, ([id, celda]) => [id, celda.dataset.estadoIndexacion])
+        );
+        let seguimiento = dashboard.dataset.seguimiento;
+        if (seguimiento) estadosConocidos.delete(seguimiento);
+
+        let errorAvisado = false;
+        const etiquetas = {
+            PENDIENTE: ['En cola', 'bg-amber-100 text-amber-800'],
+            PROCESANDO: ['Procesando', 'bg-blue-100 text-blue-800'],
+            COMPLETADO: ['Lista', 'bg-emerald-100 text-emerald-800'],
+            ERROR: ['Falló la indexación', 'bg-red-100 text-red-800']
+        };
+
+        function actualizarCelda(ley) {
+            const celda = celdas.get(String(ley.id));
+            const estado = etiquetas[ley.estado_procesamiento];
+            if (!celda || !estado) return;
+            celda.replaceChildren();
+
+            const etiqueta = document.createElement('span');
+            etiqueta.className = `${estado[1]} text-xs px-2.5 py-1 rounded-full font-semibold`;
+            etiqueta.textContent = estado[0];
+            celda.appendChild(etiqueta);
+
+            if (ley.estado_procesamiento === 'ERROR') {
+                const detalle = document.createElement('p');
+                detalle.className = 'whitespace-normal break-words text-xs text-red-700 mt-1';
+                detalle.textContent = ley.error_procesamiento || 'No se pudo completar el procesamiento.';
+                celda.appendChild(detalle);
+            }
+            celda.dataset.estadoIndexacion = ley.estado_procesamiento;
+        }
+
+        function notificarCambio(ley, estadoAnterior) {
+            const nombre = ley.nombre || 'La ley';
+            if (ley.estado_procesamiento === 'COMPLETADO') {
+                window.showAppToast(`La indexación de "${nombre}" terminó y ya está disponible para consultas.`, 'success');
+            } else if (ley.estado_procesamiento === 'ERROR') {
+                const detalle = ley.error_procesamiento || 'No se pudo completar el procesamiento.';
+                window.showAppToast(`Falló la indexación de "${nombre}": ${detalle}`, 'error');
+            } else if (ley.estado_procesamiento === 'PROCESANDO' && estadoAnterior === 'PENDIENTE') {
+                window.showAppToast(`Comenzó la indexación de "${nombre}".`, 'info');
+            } else if (ley.estado_procesamiento === 'PENDIENTE' && estadoAnterior !== 'PENDIENTE') {
+                window.showAppToast(`La indexación de "${nombre}" volvió a la cola.`, 'info');
+            }
+        }
+
+        async function consultarEstados() {
+            if (document.hidden) return;
+            const ids = new Set(celdas.keys());
+            if (seguimiento) ids.add(seguimiento);
+            if (!ids.size) return;
+
+            try {
+                const url = new URL(dashboard.dataset.indexacionUrl, window.location.origin);
+                url.searchParams.set('ids', Array.from(ids).join(','));
+                const response = await fetch(url, {
+                    headers: {'Accept': 'application/json'},
+                    credentials: 'same-origin'
+                });
+                if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                const data = await response.json();
+                if (!Array.isArray(data.leyes)) throw new Error('Respuesta inválida del servidor.');
+
+                data.leyes.forEach(ley => {
+                    const id = String(ley.id);
+                    actualizarCelda(ley);
+                    const estadoAnterior = estadosConocidos.get(id);
+                    if (estadoAnterior !== undefined && estadoAnterior !== ley.estado_procesamiento) {
+                        notificarCambio(ley, estadoAnterior);
+                    } else if (id === seguimiento && estadoAnterior === undefined && ley.estado_procesamiento !== 'PENDIENTE') {
+                        notificarCambio(ley, 'PENDIENTE');
+                    }
+                    estadosConocidos.set(id, ley.estado_procesamiento);
+                });
+
+                errorAvisado = false;
+                if (seguimiento) {
+                    seguimiento = '';
+                    dashboard.dataset.seguimiento = '';
+                    const url = new URL(window.location.href);
+                    url.searchParams.delete('seguimiento');
+                    window.history.replaceState(null, '', url);
+                }
+            } catch (error) {
+                console.error('No se pudieron consultar los estados de indexación.', error);
+                if (!errorAvisado) {
+                    window.showAppToast('No se pudo actualizar el estado de indexación. Se volverá a intentar automáticamente.', 'warning');
+                    errorAvisado = true;
+                }
+            }
+        }
+
+        window.setInterval(consultarEstados, 3000);
+        consultarEstados();
+    })();
+</script>
 {% endblock %}
