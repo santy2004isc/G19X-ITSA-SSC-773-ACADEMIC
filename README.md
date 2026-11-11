@@ -99,7 +99,7 @@ Los paneles propios están limitados por rol:
 
 ## Pruebas
 
-La suite actual tiene 59 pruebas en `apps/core/tests.py`. Cubre el registro de modelos y las vistas/hash de contraseñas en Django Admin, autenticación, redirecciones seguras, CSRF y permisos, paginación, carga y reproceso asíncronos, errores visibles de indexación, extracción/fragmentación de PDF, chat con streaming SSE, cuotas, fallback y búsqueda híbrida.
+La suite actual tiene 58 pruebas en `apps/core/tests.py`. Cubre el registro de modelos y las vistas/hash de contraseñas en Django Admin, autenticación, redirecciones seguras, CSRF y permisos, paginación, carga y reproceso asíncronos, errores visibles de indexación, extracción/fragmentación de PDF, chat con streaming SSE, cuotas, fallback y búsqueda híbrida.
 
 Con los servicios de Docker iniciados, ejecuta:
 
@@ -135,7 +135,7 @@ Este recorrido comprueba el flujo principal desde el inicio de los servicios has
 
 3. **Carga un documento normativo.** Cierra sesión, entra con la cuenta gestora y abre **Cargar documento** desde `/gestor-panel/`. Selecciona un PDF de una ley federal, completa los metadatos solicitados y envíalo. La carga se guarda y la extracción, fragmentación y creación de embeddings se ejecutan en segundo plano.
 
-4. **Confirma el resultado del procesamiento.** En `/gestor-panel/`, revisa el estado de la ley hasta que aparezca como **Completado** y que indique fragmentos generados. Para observar la ejecución del worker:
+4. **Confirma el resultado del procesamiento.** En `/gestor-panel/`, revisa el estado de indexación de la ley hasta que aparezca como **Lista**. Para observar la ejecución del worker:
 
    ```powershell
    docker compose logs -f worker
@@ -191,3 +191,11 @@ docker-compose.yml       PostgreSQL, Redis, servidor web y worker
 ## Seguridad y alcance
 
 La plataforma es una herramienta académica de consulta y no sustituye asesoría jurídica profesional. Las respuestas dependen de la calidad y vigencia de las leyes PDF cargadas. No se recomienda cargar documentos sensibles: los mensajes del chat y los fragmentos se almacenan en la base de datos. Protege las claves de API y el archivo `.env`; no lo publiques ni lo agregues al repositorio.
+
+## Licencia
+
+Desarrollado con fines académicos y de investigación. *Todos los derechos reservados.*
+
+## Asistencia con IA
+
+Para esta actualización se utilizó un asistente de IA (Copilot SDK en VS Code).
