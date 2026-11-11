@@ -1182,3 +1182,19 @@ class BusquedaHibridaTest(TestCase):
 
         self.assertIn("Código Civil Federal", nombres)
         self.assertIn("Ley Federal del Trabajo", siglas)
+
+    def test_catalogo_excluye_leyes_vigentes_pendientes_de_procesamiento(self):
+        LeyFederal.objects.create(
+            nombre="Ley Federal en procesamiento",
+            siglas="LFP",
+            fecha_publicacion=timezone.now().date(),
+            hash_documento="dummyhashpendiente1234567890abcdef1234567890abcdef1234567890abcd",
+            estado=LeyFederal.Estado.VIGENTE,
+            estado_procesamiento=LeyFederal.EstadoProcesamiento.PENDIENTE,
+        )
+
+        from .services.chat_service import obtener_leyes_mencionadas
+
+        mencionadas = obtener_leyes_mencionadas("Consulta sobre la LFP")
+
+        self.assertNotIn("Ley Federal en procesamiento", {ley['nombre'] for ley in mencionadas})

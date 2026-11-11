@@ -99,7 +99,7 @@ Los paneles propios están limitados por rol:
 
 ## Pruebas
 
-La suite actual tiene 58 pruebas en `apps/core/tests.py`. Cubre el registro de modelos y las vistas/hash de contraseñas en Django Admin, autenticación, redirecciones seguras, CSRF y permisos, paginación, carga y reproceso asíncronos, errores visibles de indexación, extracción/fragmentación de PDF, chat con streaming SSE, cuotas, fallback y búsqueda híbrida.
+La suite actual tiene 59 pruebas en `apps/core/tests.py`. Cubre el registro de modelos y las vistas/hash de contraseñas en Django Admin, autenticación, redirecciones seguras, CSRF y permisos, paginación, carga y reproceso asíncronos, errores visibles de indexación, extracción/fragmentación de PDF, chat con streaming SSE, cuotas, fallback y búsqueda híbrida.
 
 Con los servicios de Docker iniciados, ejecuta:
 

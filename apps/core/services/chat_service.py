@@ -91,7 +91,10 @@ def obtener_catalogo_leyes_vigentes():
     """Obtiene y cachea en memoria el catálogo de leyes vigentes para evitar consultas repetitivas a BD."""
     catalogo = cache.get(CACHE_LEYES_VIGENTES_KEY)
     if catalogo is None:
-        leyes_qs = LeyFederal.objects.filter(estado=LeyFederal.Estado.VIGENTE).only('id', 'nombre', 'siglas')
+        leyes_qs = LeyFederal.objects.filter(
+            estado=LeyFederal.Estado.VIGENTE,
+            estado_procesamiento=LeyFederal.EstadoProcesamiento.COMPLETADO,
+        ).only('id', 'nombre', 'siglas')
         catalogo = [
             {
                 'id': ley.id,
